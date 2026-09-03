@@ -21,7 +21,7 @@ android {
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         // ERROR.md §2.1: sqlite3_flutter_libs 0.5.27 butuh minSdk >= 21 (Android 5.0).
         // Pin eksplisit 21 agar verifiable (flutter.minSdkVersion juga 21, tapi implisit).
-        minSdk = 21
+        minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

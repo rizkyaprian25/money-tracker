@@ -6,7 +6,8 @@
 - **Versi app:** `1.0.0+1` — `pubspec.yaml:4`
 - **SDK:** `^3.12.2` — `pubspec.yaml:7` — Flutter Material 3
 - **Status baseline:** kerangka sudah ada (5 tab `go_router`, Drift 6 tabel, Riverpod, fl_chart, export service). Dokumen ini jadi *single source of truth* untuk fase Build selanjutnya.
-- **Tanggal:** 2026-09-02
+- **Tanggal:** 2026-09-03
+- **Update terakhir Fase 4-6:** 2026-09-03 — ERROR.md hardening (web/Chrome kompilasi via `goal_image_widget`, permission Android + `minSdk 21`, image persist `documents/goal_images`, SharePlus API + import ID mapping, `flutter analyze` 0 issues, `flutter test` 6/6, `flutter build web` sukses, **`flutter build apk --release` sukses `app-release.apk 24.0MB` arm64**). Sisa: currency dialog
 - **Update terakhir Fase 3:** 2026-09-02 — UI Parity (logo lokal `assets/images/logo.png` 8354B + DateRangePicker + Dropdown Category filter + bar interval dinamis `statistics_screen.dart:93-155`)
 - **Update terakhir Fase 2:** 2026-09-02 — DB Hardening (schema v2 + 8 index + migrasi v1→v2) + threshold 80% snackbar/banner (`budget_warning_helper.dart`, `budget_warning_banner.dart`)
 - **Update terakhir Fase 0:** 2026-09-02 — formalisasi PRD + AGENTS + opencode.json + Prompt.md/templates + command /finish-phase (struktur 19 section aktif)
@@ -211,7 +212,7 @@ lastBackup DATETIME NULL
 
 ### 7.3 Seed Default — `lib/database/app_database.dart:205-346`
 
-Dijalankan `onCreate` hanya jika `categories` kosong.
+Dijalankan `onCreate` hanya jika `categories` kosong. **Sejak 2026-09-03: hanya kategori + settings yang di-seed** — transaksi/anggaran/target contoh dihapus agar user mulai dari data asli (permintaan user). Empty state tiap layar sudah ditangani (`Belum ada transaksi/anggaran/target`).
 
 **Kategori Pemasukan (4):**
 - Gaji `#006E1C` `payments`, Freelance `#00731E` `work`, Bonus `#005313` `card_giftcard`, Lainnya `#454652` `more_horiz` — `app_database.dart:210-215`
@@ -241,6 +242,7 @@ Dijalankan `onCreate` hanya jika `categories` kosong.
 
 - Fields: `id, amount, transactionType (income/expense), categoryId, note, transactionDate, createdAt` — sesuai `transactions` table.
 - CRUD: `insertTransaction`, `updateTransaction(Transaction)`, `deleteTransaction` — `app_database.dart:160-162`; UI via `DraggableScrollableSheet` Add/Edit — `add_edit_transaction_sheet.dart`, Dismissible swipe kanan edit kiri hapus — `transactions_screen.dart:199-215`.
+- **Auto-refresh (2026-09-03):** tiap tambah/edit/hapus via `TransactionNotifier` otomatis `ref.invalidate(dashboard, statistics, budgetWithSpent, monthlyIncome/Expense, balance, paginated)` — saldo & ringkasan terupdate tanpa refresh manual. `BudgetNotifier` invalidate dashboard (sisa anggaran), `CategoryNotifier` invalidate dashboard (nama kategori). Stream (daftar/recent) memang sudah auto via drift watch.
 - **AC:** amount >0 validasi `CurrencyFormatter.parse` — `lib/core/utils/currency_formatter.dart:39-43`.
 
 ### 8.3 Categories — `lib/presentation/providers/category_provider.dart` + `settings_screen.dart:226-334`
@@ -279,6 +281,7 @@ Dijalankan `onCreate` hanya jika `categories` kosong.
 - Add Contribution: `goalId, amount, date, note` — `budget_screen.dart:302-357`, update `savingsGoals.currentAmount`.
 - Track progress `current/target*100` + `LinearProgressIndicator` + daftar `savingsContributionsProvider(goalId)` — `budget_screen.dart:359-413`.
 - **AC:** `Grid 2 kolom` `childAspectRatio 0.85` — `budget_screen.dart:86`, delete cascade `ON DELETE CASCADE` — `savings_contributions.dart:6`.
+- **Fase 4 baru — Image persist + web-safe render:** `image_picker` cache volatile → `_pickAndPersistImage()` via `lib/services/platform/image_persist.dart` (+ `_stub/_io/_web.dart`): IO copy ke `documents/goal_images/goal_<ts>.<ext>`, web kembalikan blob URL — `budget_screen.dart`. Render tanpa `dart:io` via `lib/presentation/widgets/goal_image_widget.dart` (+ `_stub/_io/_web.dart`): IO `FileImage` + `existsSync`, web `NetworkImage` untuk `http/blob:/data:` URL, selain itu placeholder — `savings_goal_card.dart`. Tanpa ini `flutter build web` gagal kompilasi (ERROR.md §1 H1). `imagePath` ikut di-backup/restore JSON (§8.8).
 
 ### 8.8 Export & Import — `lib/services/export_service.dart:14-306`
 
@@ -286,14 +289,14 @@ Dijalankan `onCreate` hanya jika `categories` kosong.
   - PDF: `exportPdf()` A4 `pw.TableHelper.fromTextArray` headers `[Tanggal,Kategori,Catatan,Tipe,Jumlah]` + 3 stat — `export_service.dart:76-131` → `getTemporaryDirectory()/money_tracker_report_yyyyMMdd.pdf`
   - Excel: `exportExcel()` 3 sheet `Transactions/Categories/Budgets` via `excel` — `export_service.dart:140-213` → `money_tracker_yyyyMMdd_HHmmss.xlsx`
   - JSON Backup: `exportJson()` semua tabel + `exportDate/version` — `export_service.dart:18-74` → `money_tracker_backup_yyyyMMdd_HHmmss.json`
-- **Share:** `Share.shareXFiles` — `export_service.dart:215-217`.
-- **Import:** `importJson(path)` transaction bersihkan 5 tabel lalu insert ulang — `export_service.dart:234-305` (dipanggil dari `SettingsScreen._showBackupRestore` via `FilePicker` `*.json` — `settings_screen.dart:204-217`).
+- **Share (Fase 5 — `share_plus 11`):** `SharePlus.instance.share(ShareParams(files: [...]))` — `export_service.dart` + `file_helper_io.dart` (API lama `Share.shareXFiles` deprecated, 4 warning analyze hilang).
+- **Import (Fase 5 — ID mapping fix):** `importJsonString` petakan `oldId → newId` (`catIdMap`, `goalIdMap`) karena `AUTOINCREMENT` tidak reset setelah DELETE — tanpa ini FK `categoryId/goalId` rusak saat restore. Kategori hilang → `NULL` (ikut `SET NULL`); kontribusi tanpa goal → dilewati (FK `NOT NULL`). `imagePath` goal ikut di-backup/restore. Dipanggil dari `SettingsScreen._showBackupRestore` via `FilePicker` `*.json` + `withData` (web pakai bytes) — `settings_screen.dart:204-217`.
 - **AC:** update `lastBackup` setelah JSON export/import — `settings_screen.dart:180-215`.
 
 ### 8.9 Settings — `lib/presentation/providers/settings_provider.dart:6-41` + `settings_screen.dart:10-381`
 
 - **Dark Mode:** `SwitchListTile` `isDarkModeProvider` → `db.updateSettings(isDarkMode)` — `settings_screen.dart:54-59`, `ThemeMode` di `app.dart:40`.
-- **Currency Format:** statis `IDR (Rp)` — `settings_screen.dart:62-68` + `CurrencyFormatter.format` `NumberFormat.currency locale id_ID symbol Rp decimalDigits 0` — `currency_formatter.dart:4-8`. **TODO:** selector dialog.
+- **Currency Format:** statis `IDR (Rp)` — `settings_screen.dart:62-68` + `CurrencyFormatter.format` `NumberFormat.currency locale id_ID symbol Rp decimalDigits 0` — `currency_formatter.dart:4-8`. **TODO (backlog Fase 5, belum dikerjakan):** selector dialog.
 - **Backup & Restore:** `Cadangkan & Pulihkan` sheet 2 opsi — `settings_screen.dart:191-223`.
 - **Ekspor 3 tombol:** PDF/Excel/JSON — `settings_screen.dart:105-110`.
 - **Kelola Kategori:** bottom sheet daftar + dialog add/edit — `settings_screen.dart:226-334`.
@@ -354,6 +357,8 @@ Invalidasi: legacy `ref.invalidate(dashboardProvider)` + `ref.watch(budgetsStrea
 - **AppConstants** — `lib/core/constants/app_constants.dart:1-8` `appName Money Tracker Personal`, `currencySymbol Rp`, `locale id_ID`, `dbVersion 2` (**Fase 2 bump v1→v2**), `budgetWarningThreshold 0.8`.
 - **BudgetWarningHelper** — `lib/core/utils/budget_warning_helper.dart:1-40` `showBudgetWarningSnackbars()`, `hasWarning()`, `shouldWarn()` — threshold `AppConstants.budgetWarningThreshold`.
 - **BudgetWarningBanner** — `lib/presentation/widgets/budget_warning_banner.dart:1-65` — banner error di `budget_screen.dart`.
+- **GoalImageWidget (Fase 4)** — `lib/presentation/widgets/goal_image_widget.dart` (+ `_stub/_io/_web.dart`) render image goal web-safe tanpa `dart:io` — `savings_goal_card.dart`.
+- **ImagePersist (Fase 4)** — `lib/services/platform/image_persist.dart` (+ `_stub/_io/_web.dart`) copy image galeri ke `documents/goal_images/`.
 - **ExportService** detail di 8.8.
 
 ---
@@ -372,13 +377,13 @@ Invalidasi: legacy `ref.invalidate(dashboardProvider)` + `ref.watch(budgetsStrea
 - **Fast Queries:** `where` + `orderBy desc transactionDate` + `limit/offset` + **8 index v2** (`idx_transactions_transactionDate`, `idx_transactions_categoryId`, `idx_transactions_transactionType`, `idx_transactions_date_type`, `idx_budgets_month_year`, `idx_budgets_categoryId`, `idx_savings_contributions_goalId`, `idx_categories_type` — `app_database.dart:41-55`) — query `watchTransactions` & `getTotalExpense` 10-50x lebih cepat untuk 1000+ rows (Fase 2).
 - **Pagination:** `PaginatedTransactionsNotifier` `_limit 20`, `_hasMore`, `loadInitial/loadMore` — `transaction_provider.dart:127-187`; UI `Muat Lebih Banyak` + `RefreshIndicator` — `transactions_screen.dart:166-182`.
 - **State optimasi:** `StateProvider` filter + `StreamProvider` watch untuk minimal rebuild; hindari `watch` di `build` yang berat (dashboard sudah pakai `FutureProvider`).
-- **Image:** `image_picker` compress belum — TODO.
+- **Image:** `image_picker` → `_pickAndPersistImage()` copy ke `documents/goal_images/` (Fase 4, `image_persist_io.dart`) — path cache volatile tidak lagi dipakai. Compress image masih TODO.
 
 ---
 
 ## 13. Struktur Folder Saat Ini vs Target
 
-**Saat ini (`lib/` — Fase 3 SELESAI 2026-09-02):**
+**Saat ini (`lib/` — Fase 4-6 SELESAI 2026-09-03, sisa: currency dialog):**
 ```
 app.dart
 main.dart
@@ -394,11 +399,14 @@ presentation/
 ├── providers/{database,transaction,category,budget,savings,statistics,dashboard,settings}_provider.dart (legacy, 8)
 ├── providers/{transaction,category,budget,savings,statistics,dashboard,settings}_entity_provider.dart (clean, 7 Fase 1)
 ├── screens/{dashboard,transactions,statistics,budget,settings}/ — Fase 3: dashboard_screen.dart:22-32 logo, transactions_screen.dart:16-165 DateRange+Category filter, statistics_screen.dart:93-155 bar dinamis, budget_screen.dart:22-33 logo, settings_screen.dart:22-26 + 147-149 logo
-└── widgets/{balance_card,transaction_tile,donut_chart,budget_progress_card,budget_warning_banner.dart:1-65 (Fase 2),savings_goal_card}.dart
-services/export_service.dart
+└── widgets/{balance_card,transaction_tile,donut_chart,budget_progress_card,budget_warning_banner.dart:1-65 (Fase 2),savings_goal_card,goal_image_widget.dart + _stub/_io/_web (Fase 4)}.dart
+services/{export_service.dart, platform/file_helper.dart + _stub/_io/_web, platform/image_persist.dart + _stub/_io/_web (Fase 4)}
+test/widget_test.dart (Fase 6: 6 test hermetis — CurrencyFormatter, threshold 80%, BalanceCard)
+web/{index.html (title + theme-color #24389C, Fase 4), manifest.json (#24389C, Fase 4), sqlite3.wasm, drift_worker}
+android/{AndroidManifest.xml (READ_MEDIA_IMAGES + READ_EXTERNAL_STORAGE maxSdk 32, Fase 5), app/build.gradle.kts (minSdk 21, Fase 5)}
 ```
 
-**Sebelum Fase 3:** `assets/images/logo.png` tidak ada (icon `account_balance_wallet` fallback), filter hanya 5 ChoiceChip, bar `horizontalInterval: 1000000` fixed. **Setelah Fase 3:** logo lokal + filter DateRange/Category penuh + bar interval adaptif, `flutter analyze` 0 error (147 info/warning).
+**Sebelum Fase 3:** `assets/images/logo.png` tidak ada (icon `account_balance_wallet` fallback), filter hanya 5 ChoiceChip, bar `horizontalInterval: 1000000` fixed. **Setelah Fase 3:** logo lokal + filter DateRange/Category penuh + bar interval adaptif, `flutter analyze` 0 error (147 info/warning). **Setelah Fase 4-6 (2026-09-03):** web kompilasi bersih (`goal_image_widget`, branding `#24389C`), image persist `documents/goal_images/`, SharePlus API + import ID mapping, `flutter analyze` No issues found, `flutter test` 6/6.
 
 ---
 
@@ -418,7 +426,10 @@ services/export_service.dart
 - [x] **Fase 1 — Domain/Data Clean — SELESAI (2026-09-02):** 7 entities + 7 abstract repos + 7 impl + 9 mappers + 7 repository providers + 7 entity providers + usecases (get_balance, get_dashboard, get_statistics, manage_*) — `lib/domain/*`, `lib/data/*`, `presentation/providers/*_entity_provider.dart`; `flutter analyze` 0 error (130 info/warning)
 - [x] **Fase 2 — DB Hardening — SELESAI (2026-09-02):** schemaVersion 2 (`app_constants.dart:6` dbVersion 2, `app_database.dart:28` + `_createIndexes() 8 index` — `app_database.dart:41-55`, migrasi v1→v2), threshold 80% banner (`budget_warning_banner.dart:1-65`) + snackbar (`budget_warning_helper.dart:1-40` di `budget_screen.dart:54-72` & `add_edit_transaction_sheet.dart:232-270`), `flutter analyze` 0 error (132 info/warning)
 - [x] **Fase 3 — UI Parity — SELESAI (2026-09-02):** logo lokal `assets/images/logo.png` 512x512 8354B (`System.Drawing`, `pubspec.yaml:44-45` assets + 5 screen header `Image.asset` `dashboard_screen.dart:22-32`, `transactions_screen.dart:63-72`, `statistics_screen.dart:18-25`, `budget_screen.dart:22-33`, `settings_screen.dart:22-26` + footer `settings_screen.dart:147-149`), DateRangePicker + Dropdown Category filter (`transactions_screen.dart:16-165` `_dateRange`/`_filterCategoryId` + `_pickDateRange`/`_pickCategory` + `copyWith(startDate,endDate,categoryId)`), bar interval dinamis (`statistics_screen.dart:93-155` `maxY` + `horizontalInterval` adaptif `500k`/`1jt`/`2jt`/`5jt` + `barWidth` `6`/`10`), `flutter analyze` 0 error (147 info/warning)
-- [ ] **Sisa PRD (fase Build 4-6):** image persist, permission Android, currency dialog, `flutter analyze --fatal-infos` + `flutter test` + APK release
+- [x] **Fase 4 — Budget/Savings polish — SELESAI (2026-09-03):** warning banner sudah ada (Fase 2); image persist `_pickAndPersistImage()` via `services/platform/image_persist.dart` (+ `_stub/_io/_web`) copy ke `documents/goal_images/` (`budget_screen.dart`), render web-safe `goal_image_widget.dart` (+ `_stub/_io/_web`) tanpa `dart:io` (`savings_goal_card.dart`) — fix kompilasi `flutter build web` (ERROR.md §1 H1); `imagePath` ikut backup/restore JSON; branding web `index.html` + `manifest.json` `#24389C`
+- [x] **Fase 5 — Export/Settings — SELESAI (2026-09-03):** permission `READ_MEDIA_IMAGES` + `READ_EXTERNAL_STORAGE maxSdk 32` (`AndroidManifest.xml`), `minSdk 21` eksplisit (`app/build.gradle.kts`); SharePlus 11 `SharePlus.instance.share(ShareParams)` (`export_service.dart`, `file_helper_io.dart`); import ID mapping `catIdMap/goalIdMap` (`export_service.dart` — fix FK restore rusak); currency dialog BELUM (→ backlog `[ ]` di bawah)
+- [x] **Fase 6 — QA — SELESAI (2026-09-03):** `flutter analyze` **No issues found** (20 → 0, termasuk 6 `use_build_context_synchronously` + 4 deprecated Share); `flutter test` **6/6 pass** (`test/widget_test.dart` hermetis: CurrencyFormatter ×3, threshold 80% ×2, BalanceCard ×1; full-app pump diganti — google_fonts fetch + sqlite native tidak hermetis, lihat header test); `flutter build web` sukses `√ Built build\web`; **`flutter build apk --release` sukses `app-release.apk 24.0MB` (arm64, KPI <40MB)** — hemat: `--shrink --obfuscate --split-debug-info`, foto goal `maxWidth 1280/q75`; butuh `gradle.properties` (`kotlin.incremental=false`, `Xmx3G`, `workers.max=2`, lihat ERROR.md §6) karena RAM 8GB + proyek beda drive dengan Pub cache
+- [ ] **Backlog Fase 5:** currency selector dialog (`settings_screen.dart:62-68` masih statis IDR)
 
 ---
 
@@ -427,9 +438,9 @@ services/export_service.dart
 | Risiko | Dampak | Mitigasi |
 |---|---|---|
 | `sqlite3_flutter_libs` di Android 14 | crash native | lock `0.5.27` + test `AppDatabase.forTesting` in-memory |
-| `file_picker` save di Android 13+ scoped storage | gagal simpan | fallback `Share.shareXFiles` — `export_service.dart:227-230` |
-| `excel` encode besar (>2000 rows) | OOM | limit `2000` — `export_service.dart:153`, chunk jika perlu |
-| `image_picker` path hilang setelah restart | image broken | copy ke `getApplicationDocumentsDirectory` di fase Build |
+| `file_picker` save di Android 13+ scoped storage | gagal simpan | permission `READ_MEDIA_IMAGES` + `READ_EXTERNAL_STORAGE maxSdk 32` (`AndroidManifest.xml`, Fase 5) + fallback `SharePlus.instance.share` — `export_service.dart` |
+| `excel` encode besar (>2000 rows) | OOM | limit `2000` — `export_service.dart`, chunk jika perlu |
+| `image_picker` path hilang setelah restart | image broken | SELESAI Fase 4: copy ke `documents/goal_images/` via `image_persist_io.dart` |
 | Drift watcher rebuild berlebih | jank | pakai `select` spesifik kolom + `distinct` |
 
 ---
@@ -440,9 +451,9 @@ services/export_service.dart
 **Fase 1 — Domain/Data Clean — SELESAI (2026-09-02):** 7 entities (`transaction_entity.dart`, `category_entity.dart:1-52`, `budget_entity.dart:1-68`, `savings_goal_entity.dart`, `dashboard_entity.dart`, `statistics_entity.dart`, `app_settings_entity.dart`), 7 abstract repositories, 7 impl (`transaction_repository_impl.dart:1-62`, `category_repository_impl.dart`, `budget_repository_impl.dart:1-68`, `savings_repository_impl.dart`, `dashboard_repository_impl.dart:1-53`, `statistics_repository_impl.dart`, `settings_repository_impl.dart`), 9 mappers `entity_mapper.dart`, 7 repository providers + 7 entity providers (`budget_entity_provider.dart`, `savings_entity_provider.dart`, `category_entity_provider.dart`, `settings_entity_provider.dart` baru + `dashboard_entity_provider.dart` + `transaction_entity_provider.dart` + `statistics_entity_provider.dart`), usecases `usecase_providers.dart:1-32` + `get_balance.dart` dll. `flutter analyze` 0 error, legacy providers dipertahankan untuk backward compat. §5, §9, §13, §14 ter-update.
 **Fase 2 — DB Hardening — SELESAI (2026-09-02):** schema v2 + 8 index (`app_database.dart:41-55`, `app_constants.dart:6` dbVersion 2, migrasi v1→v2), threshold 80% banner (`budget_warning_banner.dart`) + snackbar (`budget_warning_helper.dart` di `budget_screen.dart` & `add_edit_transaction_sheet.dart`), `flutter analyze` 0 error. §7, §8.6, §10, §12, §13, §14 ter-update.
 **Fase 3 — UI Parity — SELESAI (2026-09-02):** logo lokal `assets/images/logo.png` 8354B (512x512 `System.Drawing`, 5 header + footer, `pubspec.yaml:44-45`), DateRangePicker + Dropdown Category filter (`transactions_screen.dart:16-165`, `showDateRangePicker` + `ModalBottomSheet` + `copyWith`), bar interval dinamis (`statistics_screen.dart:93-155` `horizontalInterval` adaptif, `maxY*1.2`, `barWidth`), `flutter analyze` 0 error. §6, §8.4, §8.5, §13, §14 ter-update.
-**Fase 4 — Budget/Savings polish:** warning banner, image persist.
-**Fase 5 — Export/Settings:** permission Android, currency dialog.
-**Fase 6 — QA:** `flutter analyze --fatal-infos`, `flutter test`, `flutter build apk --release` offline smoke.
+**Fase 4 — Budget/Savings polish — SELESAI (2026-09-03):** warning banner sudah ada sejak Fase 2; image persist `_pickAndPersistImage()` (`services/platform/image_persist.dart` + `_stub/_io/_web`, copy ke `documents/goal_images/`) + render web-safe `goal_image_widget.dart` (fix `flutter build web` — sebelumnya `dart:io` di `savings_goal_card.dart` blokir kompilasi); branding web `#24389C` (`index.html`, `manifest.json`). §8.7, §10, §12, §13, §14 ter-update.
+**Fase 5 — Export/Settings — SELESAI (2026-09-03):** permission Android (`READ_MEDIA_IMAGES`, `READ_EXTERNAL_STORAGE maxSdk 32`) + `minSdk 21` eksplisit; SharePlus 11 `SharePlus.instance.share(ShareParams)`; import JSON ID mapping (`catIdMap/goalIdMap`) + `imagePath` ikut backup/restore. Sisa: currency selector dialog → backlog §14. §8.8, §8.9, §13, §14, §15 ter-update.
+**Fase 6 — QA — SELESAI (2026-09-03):** `flutter analyze` **No issues found** (20 → 0); `flutter test` **6/6 pass** (hermetis, lihat header `test/widget_test.dart`); `flutter build web` sukses + **`flutter build apk --release` sukses `app-release.apk 24.0MB` arm64** (hemat: `--shrink --obfuscate --split-debug-info`, foto goal dikompres `maxWidth 1280/q75`; sebelumnya 25.4MB tanpa flags) (butuh `gradle.properties` khusus — `kotlin.incremental=false`, `Xmx3G`, `workers.max=2` — karena RAM 8GB + proyek beda drive dengan Pub cache, lihat ERROR.md §6). Sisa: smoke offline device + currency dialog → backlog §14. §13, §14 ter-update.
 
 ---
 

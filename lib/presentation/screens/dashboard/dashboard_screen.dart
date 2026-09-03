@@ -136,12 +136,15 @@ class _BudgetRemainingCard extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Anggaran Bulanan', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-            Text('Sisa untuk $monthName', style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
-            const SizedBox(height: 8),
-            Text(CurrencyFormatter.format(remaining), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: scheme.primary)),
-          ]),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Anggaran Bulanan', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
+              Text('Sisa untuk $monthName', style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant), maxLines: 1, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 8),
+              Text(CurrencyFormatter.format(remaining), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: scheme.primary), maxLines: 1, overflow: TextOverflow.ellipsis),
+            ]),
+          ),
+          const SizedBox(width: 8),
           DonutChart(percent: (1 - percent).clamp(0, 1), label: '${((1 - percent).clamp(0, 1) * 100).toStringAsFixed(0)}%', color: scheme.primary),
         ],
       ),

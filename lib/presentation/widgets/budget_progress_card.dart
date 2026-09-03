@@ -67,16 +67,19 @@ class BudgetProgressCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(color: scheme.surfaceContainerHighest, shape: BoxShape.circle),
-                    child: Icon(_iconFromName(iconName), color: isOver ? scheme.error : scheme.primary, size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(catName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                ]),
+                Expanded(
+                  child: Row(children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(color: scheme.surfaceContainerHighest, shape: BoxShape.circle),
+                      child: Icon(_iconFromName(iconName), color: isOver ? scheme.error : scheme.primary, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text(catName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  ]),
+                ),
+                const SizedBox(width: 8),
                 Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                   Text(CurrencyFormatter.format(data.spent),
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: isOver ? scheme.error : scheme.onSurface)),

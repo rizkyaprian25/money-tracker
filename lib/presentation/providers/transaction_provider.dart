@@ -1,7 +1,10 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../database/app_database.dart';
+import 'budget_provider.dart';
+import 'dashboard_provider.dart';
 import 'database_provider.dart';
+import 'statistics_provider.dart';
 
 class TransactionFilter {
   final String? search;
@@ -98,19 +101,42 @@ class TransactionNotifier {
     required int categoryId,
     String? note,
     required DateTime date,
-  }) {
-    return db.insertTransaction(TransactionsCompanion.insert(
+  }) async {
+    final id = await db.insertTransaction(TransactionsCompanion.insert(
       amount: amount,
       transactionType: type,
       categoryId: Value(categoryId),
       note: Value(note),
       transactionDate: date,
     ));
+    _refreshSummaries();
+    return id;
   }
 
-  Future<bool> updateTransaction(Transaction transaction) => db.updateTransaction(transaction);
+  Future<bool> updateTransaction(Transaction transaction) async {
+    final ok = await db.updateTransaction(transaction);
+    _refreshSummaries();
+    return ok;
+  }
 
-  Future<int> deleteTransaction(int id) => db.deleteTransaction(id);
+  Future<int> deleteTransaction(int id) async {
+    final count = await db.deleteTransaction(id);
+    _refreshSummaries();
+    return count;
+  }
+
+  /// Auto-refresh: ringkasan (saldo, bulanan, statistik, anggaran) langsung
+  /// terupdate tanpa refresh manual setelah tiap tambah/edit/hapus.
+  /// Stream (daftar transaksi, recent) sudah auto via drift watch.
+  void _refreshSummaries() {
+    ref.invalidate(dashboardProvider);
+    ref.invalidate(statisticsProvider);
+    ref.invalidate(budgetWithSpentProvider);
+    ref.invalidate(monthlyIncomeProvider);
+    ref.invalidate(monthlyExpenseProvider);
+    ref.invalidate(balanceProvider);
+    ref.invalidate(paginatedTransactionsProvider);
+  }
 }
 
 final transactionNotifierProvider = Provider<TransactionNotifier>((ref) {

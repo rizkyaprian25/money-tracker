@@ -253,9 +253,14 @@ class _GoalFormSheetState extends ConsumerState<_GoalFormSheet> {
 
   /// Fase 2 (PRD Risiko + ERROR.md §2.2): persist image_picker via
   /// platform helper (IO: copy ke documents/goal_images, Web: blob URL).
+  /// Hemat penyimpanan HP: foto dikompres (max 1280px, kualitas 75).
   Future<String?> _pickAndPersistImage() async {
     final picker = ImagePicker();
-    final x = await picker.pickImage(source: ImageSource.gallery);
+    final x = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1280,
+      imageQuality: 75,
+    );
     if (x == null) return null;
     return image_persist.persistGoalImage(x);
   }

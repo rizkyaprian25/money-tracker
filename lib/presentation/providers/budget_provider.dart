@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../database/app_database.dart';
+import 'dashboard_provider.dart';
 import 'database_provider.dart';
 
 final budgetsStreamProvider = StreamProvider<List<Budget>>((ref) {
@@ -52,7 +53,8 @@ class BudgetWithSpent {
 
 class BudgetNotifier {
   final AppDatabase db;
-  BudgetNotifier(this.db);
+  final Ref ref;
+  BudgetNotifier(this.db, this.ref);
 
   Future<int> setBudget({int? categoryId, required double amount, required int month, required int year}) async {
     // if exists for cat+month+year update else insert
@@ -63,23 +65,31 @@ class BudgetNotifier {
             return b.categoryId.equals(categoryId) & b.month.equals(month) & b.year.equals(year);
           }
         })).getSingleOrNull();
+    final int id;
     if (existing != null) {
       await db.updateBudget(existing.copyWith(amount: amount));
-      return existing.id;
+      id = existing.id;
     } else {
-      return db.insertBudget(BudgetsCompanion.insert(
+      id = await db.insertBudget(BudgetsCompanion.insert(
         categoryId: Value(categoryId),
         amount: amount,
         month: month,
         year: year,
       ));
     }
+    // Sisa anggaran di dashboard ikut berubah -> refresh otomatis
+    ref.invalidate(dashboardProvider);
+    return id;
   }
 
-  Future<int> deleteBudget(int id) => db.deleteBudget(id);
+  Future<int> deleteBudget(int id) async {
+    final count = await db.deleteBudget(id);
+    ref.invalidate(dashboardProvider);
+    return count;
+  }
 }
 
 final budgetNotifierProvider = Provider<BudgetNotifier>((ref) {
   final db = ref.watch(databaseProvider);
-  return BudgetNotifier(db);
+  return BudgetNotifier(db, ref);
 });

@@ -252,4 +252,34 @@ flutter build apk --release # final APK
 
 ---
 
+## 6. Error Build APK & Environment (2026-09-03 — teratasi, APK 25.4MB)
+
+> Konteks mesin: RAM 8GB (~2GB bebas), proyek di drive `E:`, Pub cache di `C:`. Tiga error berbeda muncul berurutan — semuanya environment, bukan bug kode.
+
+### 6.1 Flutter Daemon terminated — `adb` exit -1073741523
+
+- **Gejala:** VS Code popup "The Flutter Daemon has terminated" + log `Unable to run adb... exit code -1073741523`.
+- **Diagnosis:** `adb.exe` sehat saat dicek manual (`adb version/start-server/devices` semua exit 0, satu-satunya SDK di `Sdk/`, tidak ada adb ganda di PATH). Crash bersifat **transien** (kemungkinan tabrakan saat Gradle build jalan paralel).
+- **Solusi:** klik **Restart Extension** di popup (atau Reload Window). Tidak perlu reinstall platform-tools. Jika berulang: cek port 5037 bentrok, hapus `%USERPROFILE%\.android\adbkey` korup, atau cek antivirus mengkarantina `adb.exe`.
+
+### 6.2 Dart VM crash — `Could not start thread DartWorker: 22`
+
+- **Gejala:** `flutter build apk --release` (default 3 ABI) mati dengan `os_thread.cc: Could not start thread`.
+- **Penyebab:** RAM habis saat AOT compile 3 arsitektur sekaligus.
+- **Solusi:** build arm64 saja (cukup untuk HP modern + APK lebih kecil): `flutter build apk --release --target-platform android-arm64`.
+
+### 6.3 Kotlin incremental — `different roots`
+
+- **Gejala:** `:image_picker_android/:file_picker/:share_plus:compileReleaseKotlin` gagal — `this and base files have different roots: C:\...\Pub\Cache\...` vs `E:\Mobile\money tracker\android`.
+- **Penyebab:** cache incremental Kotlin tidak bisa merelativkan source plugin (drive `C:`) terhadap proyek (drive `E:`).
+- **Solusi (permanen):** di `android/gradle.properties` tambah `kotlin.incremental=false`.
+
+### 6.4 Gradle daemon OOM — `hs_err_pid*.log`, malloc gagal
+
+- **Gejala:** `Gradle build daemon disappeared`, `hs_err` = `insufficient memory, malloc failed`, padahal `Xmx8G` (lebih besar dari RAM mesin!).
+- **Solusi (permanen):** di `android/gradle.properties`: `org.gradle.jvmargs=-Xmx3G ...`, `org.gradle.workers.max=2`. Sebelum build, kill daemon yatim (`Stop-Process` pada `java.exe` Gradle/Kotlin), tutup tab browser tak perlu. Lalu `flutter clean; flutter pub get; flutter build apk --release --target-platform android-arm64`.
+- **Hasil:** `√ Built build\app\outputs\flutter-apk\app-release.apk (25.4MB)` — lolos KPI <40MB (`PRD.md:1`).
+
+---
+
 *Dokumen ini single source untuk troubleshooting. Update tiap tambah error baru. Rujuk `PRD.md:19` & `AGENTS.md:1-40`.*
