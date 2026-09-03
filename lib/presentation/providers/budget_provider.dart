@@ -87,6 +87,19 @@ class BudgetNotifier {
     ref.invalidate(dashboardProvider);
     return count;
   }
+
+  /// v1.1: salin anggaran bulan lalu ke [month]/[year] (kategori & jumlah
+  /// sama, upsert — kategori yang sudah ada bulan ini akan ditimpa).
+  /// Kembalikan jumlah anggaran yang disalin (0 bila bulan lalu kosong).
+  Future<int> copyFromPreviousMonth({required int month, required int year}) async {
+    final prevMonth = month == 1 ? 12 : month - 1;
+    final prevYear = month == 1 ? year - 1 : year;
+    final prev = await (db.select(db.budgets)..where((b) => b.month.equals(prevMonth) & b.year.equals(prevYear))).get();
+    for (final b in prev) {
+      await setBudget(categoryId: b.categoryId, amount: b.amount, month: month, year: year);
+    }
+    return prev.length;
+  }
 }
 
 final budgetNotifierProvider = Provider<BudgetNotifier>((ref) {

@@ -131,7 +131,7 @@ Header tiap screen: `AppBar` `bg #CCF8F9FA` blur + logo lokal `assets/images/log
 
 ## 7. Database — Drift ORM
 
-**File:** `lib/database/app_database.dart:14-40` `schemaVersion => 2` (`AppConstants.dbVersion:6` = 2), `beforeOpen PRAGMA foreign_keys = ON` — `lib/database/app_database.dart:37-39` + `MigrationStrategy onUpgrade v1→v2` — `lib/database/app_database.dart:31-44`. Index dibuat via `_createIndexes()` — `app_database.dart:41-55` (8 index).
+**File:** `lib/database/app_database.dart:14-40` `schemaVersion => 4` (`AppConstants.dbVersion:6` = 4), `beforeOpen PRAGMA foreign_keys = ON` — `lib/database/app_database.dart:37-39` + `MigrationStrategy onUpgrade v1→v2` (index) + `v2→v3` (`addColumn` profil/warning) + `v3→v4` (tabel `recurring_transactions` + `addColumn pinHash` + index — `app_database.dart:31-55`). Index dibuat via `_createIndexes()` — `app_database.dart:41-55` (8 index + `idx_recurring_nextDate` di migrasi v4).
 
 ### 7.1 Tabel (6)
 
@@ -188,13 +188,17 @@ date DATETIME
 note TEXT NULL
 ```
 
-#### `app_settings` — `lib/database/tables/app_settings.dart:3-9`
+#### `app_settings` — `lib/database/tables/app_settings.dart:3-12`
 ```dart
 id INTEGER AUTO_INCREMENT PK
 currency TEXT DEFAULT 'IDR'
 isDarkMode BOOLEAN DEFAULT false
 language TEXT DEFAULT 'id'
 lastBackup DATETIME NULL
+profileName TEXT DEFAULT 'Pengguna'       // v3 (2026-09-03)
+profileEmail TEXT DEFAULT ''              // v3
+budgetWarningEnabled BOOLEAN DEFAULT true // v3
+pinHash TEXT DEFAULT ''                   // v4 (2026-09-03, SHA-256 PIN, '' = mati)
 ```
 
 ### 7.2 Query Utama — `lib/database/app_database.dart:43-203` + Index v2 — `app_database.dart:41-55`
@@ -296,7 +300,10 @@ Dijalankan `onCreate` hanya jika `categories` kosong. **Sejak 2026-09-03: hanya 
 ### 8.9 Settings — `lib/presentation/providers/settings_provider.dart:6-41` + `settings_screen.dart:10-381`
 
 - **Dark Mode:** `SwitchListTile` `isDarkModeProvider` → `db.updateSettings(isDarkMode)` — `settings_screen.dart:54-59`, `ThemeMode` di `app.dart:40`.
-- **Currency Format:** statis `IDR (Rp)` — `settings_screen.dart:62-68` + `CurrencyFormatter.format` `NumberFormat.currency locale id_ID symbol Rp decimalDigits 0` — `currency_formatter.dart:4-8`. **TODO (backlog Fase 5, belum dikerjakan):** selector dialog.
+- **Currency Format:** statis `IDR (Rp)` — `settings_screen.dart:62-68` + `CurrencyFormatter.format` `NumberFormat.currency locale id_ID symbol Rp decimalDigits 0` — `currency_formatter.dart:4-8`. **SELESAI (2026-09-03):** dialog pemilih via `RadioGroup` (`_showCurrencyDialog`); v1 hanya IDR, pilihan persist via `setCurrency`.
+- **Profil user (2026-09-03):** kartu profil tampil `profileName/profileEmail` dari settings + dialog edit (`_showEditProfile`) persist via `updateProfile` — butuh kolom baru (schema v3, §7).
+- **Notifikasi → Peringatan Anggaran (2026-09-03):** `SwitchListTile` bound ke `budgetWarningEnabled`; OFF mematikan snackbar 80% di `budget_screen` & `add_edit_transaction_sheet` (di-check sebelum tampil).
+- **Bantuan (2026-09-03):** bottom sheet FAQ offline 5 item (`_showHelpSheet`).
 - **Backup & Restore:** `Cadangkan & Pulihkan` sheet 2 opsi — `settings_screen.dart:191-223`.
 - **Ekspor 3 tombol:** PDF/Excel/JSON — `settings_screen.dart:105-110`.
 - **Kelola Kategori:** bottom sheet daftar + dialog add/edit — `settings_screen.dart:226-334`.
@@ -309,6 +316,23 @@ Dijalankan `onCreate` hanya jika `categories` kosong. **Sejak 2026-09-03: hanya 
 - **FAB** konsisten `primaryContainer` rounded 12 — tiap screen `floatingActionButton` buka sheet (Dashboard/Transaksi/Anggaran).
 - **Material 3** `useMaterial3: true`, `scaffoldBackgroundColor surface #F8F9FA`, `cardTheme surfaceContainerLowest radius 12` — `app_theme.dart:6-70`.
 - **Inter font** via `google_fonts` — `app_theme.dart:89`.
+
+### 8.11 Transaksi Berulang Otomatis (v1.1, 2026-09-03)
+
+- Tabel baru `recurring_transactions` (`amount, transactionType, categoryId→SET NULL, note, frequency weekly|monthly, nextDate, isActive`) + index `idx_recurring_nextDate` — §7 + migrasi v4.
+- Buat: toggle `Ulangi otomatis` + pilihan Mingguan/Bulanan di `AddEditTransactionSheet` (hanya tambah baru) → `RecurringNotifier.createRule` (`nextDate` = kemunculan setelah transaksi manual, anti-dobel).
+- Generate: `AppDatabase.processDueRecurring()` di awal `dashboardProvider` (idempoten, safety max 370).
+- Kelola: icon `event_repeat` di AppBar Riwayat → `RecurringSheet` (frekuensi + tanggal berikut + switch + hapus). Jadwal murni `nextRecurrence()` (unit-tested: jepit akhir bulan + kabisat). Backup JSON ikut `recurring`.
+
+### 8.12 Kunci PIN Layar (v1.1, 2026-09-03)
+
+- Kolom `pinHash` (SHA-256 + salt, paket `crypto` — `core/utils/pin_hasher.dart`, unit-tested) + migrasi v4.
+- `LockScreen` PIN pad 6 digit via `MaterialApp.builder` bila PIN terisi & `appLockedProvider` (kunci ulang tiap cold start).
+- Pengaturan → `Kunci Layar (PIN)`: buat (2x konfirmasi), ganti, nonaktifkan (verifikasi PIN lama).
+
+### 8.13 Salin Anggaran Bulan Lalu (v1.1, 2026-09-03)
+
+- Tombol `Salin` di header Anggaran → `BudgetNotifier.copyFromPreviousMonth()` (upsert, timpa bulan berjalan) + dialog konfirmasi + snackbar jumlah.
 
 ---
 
@@ -429,7 +453,8 @@ android/{AndroidManifest.xml (READ_MEDIA_IMAGES + READ_EXTERNAL_STORAGE maxSdk 3
 - [x] **Fase 4 — Budget/Savings polish — SELESAI (2026-09-03):** warning banner sudah ada (Fase 2); image persist `_pickAndPersistImage()` via `services/platform/image_persist.dart` (+ `_stub/_io/_web`) copy ke `documents/goal_images/` (`budget_screen.dart`), render web-safe `goal_image_widget.dart` (+ `_stub/_io/_web`) tanpa `dart:io` (`savings_goal_card.dart`) — fix kompilasi `flutter build web` (ERROR.md §1 H1); `imagePath` ikut backup/restore JSON; branding web `index.html` + `manifest.json` `#24389C`
 - [x] **Fase 5 — Export/Settings — SELESAI (2026-09-03):** permission `READ_MEDIA_IMAGES` + `READ_EXTERNAL_STORAGE maxSdk 32` (`AndroidManifest.xml`), `minSdk 21` eksplisit (`app/build.gradle.kts`); SharePlus 11 `SharePlus.instance.share(ShareParams)` (`export_service.dart`, `file_helper_io.dart`); import ID mapping `catIdMap/goalIdMap` (`export_service.dart` — fix FK restore rusak); currency dialog BELUM (→ backlog `[ ]` di bawah)
 - [x] **Fase 6 — QA — SELESAI (2026-09-03):** `flutter analyze` **No issues found** (20 → 0, termasuk 6 `use_build_context_synchronously` + 4 deprecated Share); `flutter test` **6/6 pass** (`test/widget_test.dart` hermetis: CurrencyFormatter ×3, threshold 80% ×2, BalanceCard ×1; full-app pump diganti — google_fonts fetch + sqlite native tidak hermetis, lihat header test); `flutter build web` sukses `√ Built build\web`; **`flutter build apk --release` sukses `app-release.apk 24.0MB` (arm64, KPI <40MB)** — hemat: `--shrink --obfuscate --split-debug-info`, foto goal `maxWidth 1280/q75`; butuh `gradle.properties` (`kotlin.incremental=false`, `Xmx3G`, `workers.max=2`, lihat ERROR.md §6) karena RAM 8GB + proyek beda drive dengan Pub cache
-- [ ] **Backlog Fase 5:** currency selector dialog (`settings_screen.dart:62-68` masih statis IDR)
+- [x] **Fitur sampingan batch — SELESAI (2026-09-03):** 6 tombol mati dihidupkan — Dashboard `Lihat Semua → /transactions`, `Detail → /statistics` (`context.go`); profil user edit persist (kolom baru `profileName/profileEmail`); dialog mata uang (`RadioGroup`, persist IDR); `Notifikasi` → toggle `Peringatan Anggaran` (`budgetWarningEnabled`, mematikan snackbar 80%); `Bantuan` → FAQ offline 5 item. Skema DB v2→v3 (`addColumn` + `build_runner` regen + entity/mapper/repo ikut). `analyze` 0 issues, test 6/6, APK 24.1MB
+- [x] **Fitur v1.1 batch — SELESAI (2026-09-03):** (1) transaksi berulang otomatis — tabel `recurring_transactions` + `processDueRecurring()` + toggle di sheet + `RecurringSheet` kelola + backup ikut; (2) kunci PIN 6 digit — `pinHash` SHA-256 + `LockScreen` + pengaturan buat/ganti/nonaktif; (3) salin anggaran bulan lalu — `copyFromPreviousMonth()` + tombol + konfirmasi. Skema DB v3→v4. Test 13/13 (`nextRecurrence` ×5, `PinHasher` ×2). `analyze` 0 issues, APK 24.1MB
 
 ---
 

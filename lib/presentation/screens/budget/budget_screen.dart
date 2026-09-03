@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../services/platform/image_persist.dart' as image_persist;
+import '../../providers/settings_provider.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/budget_warning_helper.dart';
 import '../../../database/app_database.dart';
@@ -49,8 +50,9 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
             const Center(child: Column(children: [Text('Ringkasan Anggaran', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)), SizedBox(height: 4), Text('Pantau pengeluaran Anda', style: TextStyle(fontSize: 12, color: Colors.grey))])),
             const SizedBox(height: 16),
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const Text('Anggaran Bulanan', style: TextStyle(fontWeight: FontWeight.w600)),
-              TextButton.icon(onPressed: _showAddBudgetDialog, icon: const Icon(Icons.add, size: 16), label: const Text('Atur Anggaran', style: TextStyle(fontSize: 12))),
+              const Expanded(child: Text('Anggaran Bulanan', style: TextStyle(fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis)),
+              TextButton.icon(onPressed: _copyLastMonth, icon: const Icon(Icons.content_copy, size: 16), label: const Text('Salin', style: TextStyle(fontSize: 12))),
+              TextButton.icon(onPressed: _showAddBudgetDialog, icon: const Icon(Icons.add, size: 16), label: const Text('Atur', style: TextStyle(fontSize: 12))),
             ]),
             const SizedBox(height: 8),
             budgetAsync.when(
@@ -65,8 +67,10 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                   );
                 }
                 // Fase 2: warning banner 80% + over-budget + auto snackbar sekali per load
+                // (hormati toggle Pengaturan → Peringatan Anggaran)
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (list.any((b) => b.isOver)) {
+                  final warnEnabled = ref.read(settingsStreamProvider).valueOrNull?.budgetWarningEnabled ?? true;
+                  if (warnEnabled && list.any((b) => b.isOver)) {
                     // hanya tampilkan snackbar jika ada over, hindari spam dengan cek mounted
                     if (context.mounted) BudgetWarningHelper.showBudgetWarningSnackbars(context, list);
                   }
@@ -117,6 +121,32 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
 
   void _showAddBudgetDialog() {
     showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (_) => _BudgetFormSheet());
+  }
+
+  /// v1.1: salin anggaran bulan lalu ke bulan berjalan (dengan konfirmasi).
+  Future<void> _copyLastMonth() async {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    final now = DateTime.now();
+    final prev = DateTime(now.year, now.month - 1, 1);
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Salin Anggaran?'),
+        content: Text('Salin semua anggaran bulan ${months[prev.month - 1]} ke bulan ${months[now.month - 1]}? Kategori yang sudah ada bulan ini akan ditimpa.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Batal')),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Salin')),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    final count = await ref.read(budgetNotifierProvider).copyFromPreviousMonth(month: now.month, year: now.year);
+    ref.invalidate(budgetWithSpentProvider);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(count == 0 ? 'Tidak ada anggaran bulan ${months[prev.month - 1]}' : '$count anggaran disalin dari bulan ${months[prev.month - 1]}'),
+      ));
+    }
   }
 
   void _showEditBudgetDialog(BudgetWithSpent data) {

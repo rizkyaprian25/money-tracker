@@ -95,6 +95,9 @@ extension AppSettingMapper on AppSetting {
         isDarkMode: isDarkMode,
         language: language,
         lastBackup: lastBackup,
+        profileName: profileName,
+        profileEmail: profileEmail,
+        budgetWarningEnabled: budgetWarningEnabled,
       );
 }
 

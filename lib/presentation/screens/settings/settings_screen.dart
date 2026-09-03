@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../../core/utils/pin_hasher.dart';
 import '../../../services/export_service.dart';
 import '../../providers/database_provider.dart';
 import '../../providers/settings_provider.dart';
@@ -41,8 +42,8 @@ class SettingsScreen extends ConsumerWidget {
                   Positioned(bottom: 0, right: 0, child: Container(width: 12, height: 12, decoration: BoxDecoration(color: scheme.secondaryFixed, shape: BoxShape.circle, border: Border.all(color: scheme.surfaceContainerLow, width: 2)))),
                 ]),
                 const SizedBox(width: 12),
-                const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Alex Finance', style: TextStyle(fontWeight: FontWeight.w600)), Text('alex.finance@example.com', style: TextStyle(fontSize: 12, color: Colors.grey))])),
-                IconButton(onPressed: () {}, icon: Icon(Icons.edit, color: scheme.primary)),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text((settings?.profileName.isNotEmpty ?? false) ? settings!.profileName : 'Pengguna', style: const TextStyle(fontWeight: FontWeight.w600)), Text((settings?.profileEmail.isNotEmpty ?? false) ? settings!.profileEmail : 'Ketuk ikon pensil untuk isi profil', style: const TextStyle(fontSize: 12, color: Colors.grey))])),
+                IconButton(onPressed: () => _showEditProfile(context, ref), icon: Icon(Icons.edit, color: scheme.primary)),
               ]),
             ),
             const SizedBox(height: 20),
@@ -62,17 +63,25 @@ class SettingsScreen extends ConsumerWidget {
                 ListTile(
                   leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: scheme.surfaceContainerHighest.withValues(alpha: 0.5), shape: BoxShape.circle), child: Icon(Icons.payments, size: 18, color: scheme.onSurfaceVariant)),
                   title: const Text('Format Mata Uang', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                  subtitle: const Text('IDR (Rp)', style: TextStyle(fontSize: 12)),
+                  subtitle: Text((settings?.currency ?? 'IDR') == 'IDR' ? 'IDR (Rp)' : settings?.currency ?? 'IDR', style: const TextStyle(fontSize: 12)),
                   trailing: Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
-                  onTap: () {},
+                  onTap: () => _showCurrencyDialog(context, ref),
+                ),
+                Divider(height: 1, indent: 56, color: scheme.outlineVariant.withValues(alpha: 0.3)),
+                SwitchListTile(
+                  secondary: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: scheme.surfaceContainerHighest.withValues(alpha: 0.5), shape: BoxShape.circle), child: Icon(Icons.notifications, size: 18, color: scheme.onSurfaceVariant)),
+                  title: const Text('Peringatan Anggaran', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                  subtitle: Text((settings?.budgetWarningEnabled ?? true) ? 'Aktif saat 80% tercapai' : 'Nonaktif', style: const TextStyle(fontSize: 12)),
+                  value: settings?.budgetWarningEnabled ?? true,
+                  onChanged: (v) => ref.read(settingsNotifierProvider).setBudgetWarningEnabled(v),
                 ),
                 Divider(height: 1, indent: 56, color: scheme.outlineVariant.withValues(alpha: 0.3)),
                 ListTile(
-                  leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: scheme.surfaceContainerHighest.withValues(alpha: 0.5), shape: BoxShape.circle), child: Icon(Icons.notifications, size: 18, color: scheme.onSurfaceVariant)),
-                  title: const Text('Notifikasi', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                  subtitle: const Text('Pengingat harian aktif', style: TextStyle(fontSize: 12)),
+                  leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: scheme.surfaceContainerHighest.withValues(alpha: 0.5), shape: BoxShape.circle), child: Icon(Icons.lock, size: 18, color: scheme.onSurfaceVariant)),
+                  title: const Text('Kunci Layar (PIN)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                  subtitle: Text((settings?.pinHash.isNotEmpty ?? false) ? 'Aktif — dibuka tiap buka aplikasi' : 'Nonaktif', style: const TextStyle(fontSize: 12)),
                   trailing: Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
-                  onTap: () {},
+                  onTap: () => _showLockSheet(context, ref),
                 ),
               ]),
             ),
@@ -139,7 +148,7 @@ class SettingsScreen extends ConsumerWidget {
                   leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: scheme.surfaceContainerHighest.withValues(alpha: 0.5), shape: BoxShape.circle), child: Icon(Icons.help, size: 18, color: scheme.onSurfaceVariant)),
                   title: const Text('Bantuan & Dukungan', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
                   trailing: Icon(Icons.open_in_new, size: 18, color: scheme.onSurfaceVariant),
-                  onTap: () {},
+                  onTap: () => _showHelpSheet(context),
                 ),
               ]),
             ),
@@ -225,6 +234,217 @@ class SettingsScreen extends ConsumerWidget {
           ),
           SizedBox(height: MediaQuery.of(c).padding.bottom + 10),
         ]),
+      ),
+    );
+  }
+
+  void _showEditProfile(BuildContext context, WidgetRef ref) {
+    final settings = ref.read(settingsStreamProvider).valueOrNull;
+    final nameCtrl = TextEditingController(text: settings?.profileName ?? '');
+    final emailCtrl = TextEditingController(text: settings?.profileEmail ?? '');
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Edit Profil'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Nama', border: OutlineInputBorder())),
+          const SizedBox(height: 12),
+          TextField(controller: emailCtrl, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Email (opsional)', border: OutlineInputBorder())),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Batal')),
+          FilledButton(
+            onPressed: () async {
+              await ref.read(settingsNotifierProvider).updateProfile(name: nameCtrl.text.trim().isEmpty ? 'Pengguna' : nameCtrl.text.trim(), email: emailCtrl.text.trim());
+              if (c.mounted) Navigator.pop(c);
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCurrencyDialog(BuildContext context, WidgetRef ref) {
+    final current = ref.read(settingsStreamProvider).valueOrNull?.currency ?? 'IDR';
+    // v1 hanya mendukung IDR (tanpa kurs live) — dialog tetap fungsional:
+    // pilihan tersimpan ke settings.
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Format Mata Uang'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          RadioGroup<String>(
+            groupValue: current,
+            onChanged: (v) async {
+              if (v != null) await ref.read(settingsNotifierProvider).setCurrency(v);
+              if (c.mounted) Navigator.pop(c);
+            },
+            child: const Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RadioListTile<String>(
+                  title: Text('IDR (Rp)'),
+                  subtitle: Text('Rupiah Indonesia', style: TextStyle(fontSize: 12)),
+                  value: 'IDR',
+                ),
+              ],
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: Text('Versi 1 hanya mendukung Rupiah (tanpa kurs live).', style: TextStyle(fontSize: 12, color: Colors.grey)),
+          ),
+        ]),
+        actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('Tutup'))],
+      ),
+    );
+  }
+
+  void _showHelpSheet(BuildContext context) {
+    const faqs = [
+      ['Bagaimana cara mencatat transaksi?', 'Ketuk tombol + di Beranda/Riwayat, pilih Pemasukan/Pengeluaran, isi jumlah, kategori, lalu Simpan. Saldo terupdate otomatis.'],
+      ['Bagaimana cara mengatur anggaran?', 'Buka tab Anggaran → Atur Anggaran → pilih kategori dan jumlah bulanan. Peringatan muncul saat 80% tercapai.'],
+      ['Bagaimana cara backup data?', 'Pengaturan → Cadangkan & Pulihkan → Cadangkan Sekarang (JSON). Simpan file di tempat aman; pulihkan via Pulihkan dari File.'],
+      ['Apakah data saya online?', 'Tidak. Semua data tersimpan offline di HP ini (SQLite). Uninstall tanpa backup akan menghapus data.'],
+      ['Foto target menabung hilang?', 'Foto otomatis tersimpan di aplikasi. Jika pindah HP, backup JSON tidak membawa file foto — buat ulang target di HP baru.'],
+    ];
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (c) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        maxChildSize: 0.9,
+        minChildSize: 0.4,
+        expand: false,
+        builder: (context, scrollController) => ListView(
+          controller: scrollController,
+          padding: const EdgeInsets.all(20),
+          children: [
+            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 16),
+            const Text('Bantuan', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 12),
+            for (final faq in faqs) ...[
+              Text(faq[0], style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              const SizedBox(height: 4),
+              Text(faq[1], style: const TextStyle(fontSize: 13, color: Colors.grey)),
+              const SizedBox(height: 16),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showLockSheet(BuildContext context, WidgetRef ref) {
+    final hasPin = (ref.read(settingsStreamProvider).valueOrNull?.pinHash.isNotEmpty ?? false);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (c) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 40, height: 4, decoration: BoxDecoration(color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 16),
+          const Text('Kunci Layar (PIN)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          Text(hasPin ? 'PIN aktif. Aplikasi dikunci tiap dibuka.' : 'Belum ada PIN. Aplikasi terbuka tanpa kunci.', style: const TextStyle(fontSize: 13, color: Colors.grey)),
+          const SizedBox(height: 16),
+          ListTile(
+            leading: const Icon(Icons.pin),
+            title: Text(hasPin ? 'Ganti PIN' : 'Buat PIN'),
+            onTap: () {
+              Navigator.pop(c);
+              _askNewPin(context, ref);
+            },
+          ),
+          if (hasPin)
+            ListTile(
+              leading: Icon(Icons.lock_open, color: Theme.of(context).colorScheme.error),
+              title: Text('Nonaktifkan kunci', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              onTap: () {
+                Navigator.pop(c);
+                _askPinThen(context, ref, 'Masukkan PIN lama', (ok) async {
+                  if (ok) {
+                    await ref.read(settingsNotifierProvider).clearPin();
+                    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Kunci layar dimatikan')));
+                  }
+                });
+              },
+            ),
+          SizedBox(height: MediaQuery.of(c).padding.bottom + 10),
+        ]),
+      ),
+    );
+  }
+
+  /// Minta PIN lama; panggil [onResult] dengan true bila cocok.
+  void _askPinThen(BuildContext context, WidgetRef ref, String title, Future<void> Function(bool ok) onResult) {
+    final ctrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: ctrl,
+          keyboardType: TextInputType.number,
+          obscureText: true,
+          maxLength: 6,
+          decoration: const InputDecoration(labelText: 'PIN 6 digit', border: OutlineInputBorder(), counterText: ''),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Batal')),
+          FilledButton(
+            onPressed: () async {
+              final stored = ref.read(settingsStreamProvider).valueOrNull?.pinHash ?? '';
+              final ok = PinHasher.verify(ctrl.text.trim(), stored);
+              Navigator.pop(c);
+              if (!ok && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PIN salah')));
+              }
+              await onResult(ok);
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Buat PIN baru (2x input konfirmasi).
+  void _askNewPin(BuildContext context, WidgetRef ref) {
+    final first = TextEditingController();
+    final second = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Buat PIN Baru'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: first, keyboardType: TextInputType.number, obscureText: true, maxLength: 6, decoration: const InputDecoration(labelText: 'PIN 6 digit', border: OutlineInputBorder(), counterText: '')),
+          const SizedBox(height: 12),
+          TextField(controller: second, keyboardType: TextInputType.number, obscureText: true, maxLength: 6, decoration: const InputDecoration(labelText: 'Ulangi PIN', border: OutlineInputBorder(), counterText: '')),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Batal')),
+          FilledButton(
+            onPressed: () async {
+              final a = first.text.trim();
+              final b = second.text.trim();
+              if (!PinHasher.isValidFormat(a) || a != b) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PIN harus 6 digit dan sama')));
+                return;
+              }
+              await ref.read(settingsNotifierProvider).setPinHash(PinHasher.hash(a));
+              if (c.mounted) Navigator.pop(c);
+              if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PIN aktif — berlaku mulai buka aplikasi berikutnya')));
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
       ),
     );
   }

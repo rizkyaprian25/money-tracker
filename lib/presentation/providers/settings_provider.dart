@@ -33,6 +33,22 @@ class SettingsNotifier {
   Future<void> updateLastBackup(DateTime now) async {
     await db.updateSettings(AppSettingsCompanion(lastBackup: Value(now)));
   }
+
+  Future<void> updateProfile({required String name, required String email}) async {
+    await db.updateSettings(AppSettingsCompanion(profileName: Value(name), profileEmail: Value(email)));
+  }
+
+  Future<void> setBudgetWarningEnabled(bool value) async {
+    await db.updateSettings(AppSettingsCompanion(budgetWarningEnabled: Value(value)));
+  }
+
+  Future<void> setPinHash(String hash) async {
+    await db.updateSettings(AppSettingsCompanion(pinHash: Value(hash)));
+  }
+
+  Future<void> clearPin() async {
+    await db.updateSettings(const AppSettingsCompanion(pinHash: Value('')));
+  }
 }
 
 final settingsNotifierProvider = Provider<SettingsNotifier>((ref) {

@@ -6,6 +6,7 @@ import '../../providers/transaction_provider.dart';
 import '../../providers/category_provider.dart';
 import '../../widgets/transaction_tile.dart';
 import 'add_edit_transaction_sheet.dart';
+import 'recurring_sheet.dart';
 
 class TransactionsScreen extends ConsumerStatefulWidget {
   const TransactionsScreen({super.key});
@@ -204,6 +205,11 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
           const Text('Transaksi', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
         ]),
         actions: [
+          IconButton(
+            tooltip: 'Transaksi berulang',
+            onPressed: () => showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (_) => const RecurringSheet()),
+            icon: Icon(Icons.event_repeat, color: scheme.primary),
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: CircleAvatar(backgroundColor: scheme.primary, child: const Icon(Icons.person, color: Colors.white, size: 18)),

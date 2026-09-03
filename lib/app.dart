@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'core/theme/app_theme.dart';
+import 'presentation/providers/lock_provider.dart';
 import 'presentation/providers/settings_provider.dart';
 import 'presentation/screens/dashboard/dashboard_screen.dart';
+import 'presentation/screens/settings/lock_screen.dart';
 import 'presentation/screens/transactions/transactions_screen.dart';
 import 'presentation/screens/statistics/statistics_screen.dart';
 import 'presentation/screens/budget/budget_screen.dart';
@@ -15,6 +17,9 @@ class MoneyTrackerApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = ref.watch(isDarkModeProvider);
+    final settings = ref.watch(settingsStreamProvider).valueOrNull;
+    final locked = ref.watch(appLockedProvider);
+    final pinHash = settings?.pinHash ?? '';
 
     final router = GoRouter(
       initialLocation: '/',
@@ -39,6 +44,13 @@ class MoneyTrackerApp extends ConsumerWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
       routerConfig: router,
+      // v1.1: kunci PIN — tutupi seluruh app bila terkunci
+      builder: (context, child) {
+        if (pinHash.isNotEmpty && locked) {
+          return LockScreen(pinHash: pinHash, onUnlocked: () {});
+        }
+        return child ?? const SizedBox.shrink();
+      },
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../providers/dashboard_provider.dart';
 import '../../widgets/balance_card.dart';
@@ -79,7 +80,7 @@ class DashboardScreen extends ConsumerWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('Aktivitas Terbaru', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                      TextButton(onPressed: () {}, child: const Text('Lihat Semua')),
+                      TextButton(onPressed: () => context.go('/transactions'), child: const Text('Lihat Semua')),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -169,7 +170,7 @@ class _TopExpenseCard extends StatelessWidget {
         children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             const Expanded(child: Text('Pengeluaran Teratas', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis)),
-            TextButton(onPressed: () {}, child: const Row(children: [Text('Detail', style: TextStyle(fontSize: 11)), Icon(Icons.chevron_right, size: 14)])),
+            TextButton(onPressed: () => context.go('/statistics'), child: const Row(children: [Text('Detail', style: TextStyle(fontSize: 11)), Icon(Icons.chevron_right, size: 14)])),
           ]),
           if (top2.isEmpty)
             Padding(padding: const EdgeInsets.all(8), child: Text('Belum ada data', style: TextStyle(color: scheme.outline))),

@@ -4,6 +4,8 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:money_tracker_personal/core/constants/app_constants.dart';
 import 'package:money_tracker_personal/core/utils/budget_warning_helper.dart';
 import 'package:money_tracker_personal/core/utils/currency_formatter.dart';
+import 'package:money_tracker_personal/core/utils/pin_hasher.dart';
+import 'package:money_tracker_personal/database/tables/recurring_transactions.dart';
 import 'package:money_tracker_personal/presentation/widgets/balance_card.dart';
 
 // Catatan: full-app pump sengaja TIDAK dipakai di sini karena dua alasan
@@ -36,8 +38,7 @@ void main() {
     });
   });
 
-  group('Budget threshold 80% (PRD §8.6)', () {
-    test('threshold terkunci 0.8', () {
+  group('Budget threshold 80% (PRD §8.6)', () {    test('threshold terkunci 0.8', () {
       expect(AppConstants.budgetWarningThreshold, 0.8);
     });
 
@@ -45,6 +46,44 @@ void main() {
       expect(BudgetWarningHelper.shouldWarn(0.79), isFalse);
       expect(BudgetWarningHelper.shouldWarn(0.8), isTrue);
       expect(BudgetWarningHelper.shouldWarn(1.2), isTrue);
+    });
+  });
+
+  group('Transaksi berulang nextRecurrence (v1.1)', () {
+    test('mingguan +7 hari', () {
+      expect(nextRecurrence(DateTime(2026, 9, 3), 'weekly'), DateTime(2026, 9, 10));
+    });
+
+    test('bulanan tanggal sama', () {
+      expect(nextRecurrence(DateTime(2026, 9, 15), 'monthly'), DateTime(2026, 10, 15));
+    });
+
+    test('bulanan ganti tahun Des -> Jan', () {
+      expect(nextRecurrence(DateTime(2026, 12, 5), 'monthly'), DateTime(2027, 1, 5));
+    });
+
+    test('bulanan 31 Jan dijepit ke 28 Feb (non-kabisat)', () {
+      expect(nextRecurrence(DateTime(2026, 1, 31), 'monthly'), DateTime(2026, 2, 28));
+    });
+
+    test('bulanan 31 Jan dijepit ke 29 Feb (kabisat 2028)', () {
+      expect(nextRecurrence(DateTime(2028, 1, 31), 'monthly'), DateTime(2028, 2, 29));
+    });
+  });
+
+  group('PinHasher kunci layar (v1.1)', () {
+    test('hash deterministik & verify benar/salah', () {
+      final h1 = PinHasher.hash('123456');
+      expect(h1, PinHasher.hash('123456'));
+      expect(PinHasher.verify('123456', h1), isTrue);
+      expect(PinHasher.verify('654321', h1), isFalse);
+      expect(PinHasher.verify('123456', ''), isFalse);
+    });
+
+    test('format hanya 6 digit angka', () {
+      expect(PinHasher.isValidFormat('123456'), isTrue);
+      expect(PinHasher.isValidFormat('12345'), isFalse);
+      expect(PinHasher.isValidFormat('abcdef'), isFalse);
     });
   });
 

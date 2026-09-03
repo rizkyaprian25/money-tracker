@@ -8,6 +8,7 @@ import '../../../database/app_database.dart';
 import '../../providers/budget_provider.dart';
 import '../../providers/category_provider.dart';
 import '../../providers/database_provider.dart';
+import '../../providers/recurring_provider.dart';
 import '../../providers/transaction_provider.dart';
 
 class AddEditTransactionSheet extends ConsumerStatefulWidget {
@@ -25,6 +26,9 @@ class _AddEditTransactionSheetState extends ConsumerState<AddEditTransactionShee
   final noteCtrl = TextEditingController();
   DateTime date = DateTime.now();
   bool isSaving = false;
+  // v1.1: transaksi berulang (hanya saat tambah baru)
+  bool isRecurring = false;
+  String frequency = 'monthly';
 
   @override
   void initState() {
@@ -157,6 +161,34 @@ class _AddEditTransactionSheetState extends ConsumerState<AddEditTransactionShee
                   maxLines: 2,
                 ),
                 const SizedBox(height: 12),
+                if (widget.existing == null) ...[
+                  Container(
+                    decoration: BoxDecoration(color: scheme.surfaceContainerHighest.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(12)),
+                    child: Column(children: [
+                      SwitchListTile(
+                        title: const Text('Ulangi otomatis', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                        subtitle: const Text('Gaji, cicilan, langganan', style: TextStyle(fontSize: 12)),
+                        secondary: Icon(Icons.event_repeat, color: scheme.primary),
+                        value: isRecurring,
+                        onChanged: (v) => setState(() => isRecurring = v),
+                      ),
+                      if (isRecurring)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                          child: DropdownButtonFormField<String>(
+                            initialValue: frequency,
+                            decoration: InputDecoration(filled: true, fillColor: scheme.surface, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)),
+                            items: const [
+                              DropdownMenuItem(value: 'monthly', child: Text('Setiap bulan')),
+                              DropdownMenuItem(value: 'weekly', child: Text('Setiap minggu')),
+                            ],
+                            onChanged: (v) => setState(() => frequency = v ?? 'monthly'),
+                          ),
+                        ),
+                    ]),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 InkWell(
                   onTap: () async {
                     final picked = await showDatePicker(context: context, initialDate: date, firstDate: DateTime(2020), lastDate: DateTime(2030));
@@ -232,6 +264,17 @@ class _AddEditTransactionSheetState extends ConsumerState<AddEditTransactionShee
       final notifier = ref.read(transactionNotifierProvider);
       if (widget.existing == null) {
         await notifier.addTransaction(amount: amount, type: type, categoryId: selectedCategoryId!, note: noteCtrl.text.trim().isEmpty ? null : noteCtrl.text.trim(), date: date);
+        // v1.1: buat aturan berulang (transaksi pertama = yang baru disimpan)
+        if (isRecurring) {
+          await ref.read(recurringNotifierProvider).createRule(
+                amount: amount,
+                type: type,
+                categoryId: selectedCategoryId!,
+                note: noteCtrl.text.trim().isEmpty ? null : noteCtrl.text.trim(),
+                frequency: frequency,
+                from: date,
+              );
+        }
       } else {
         final old = widget.existing!.transaction;
         await notifier.updateTransaction(old.copyWith(amount: amount, transactionType: type, categoryId: drift.Value(selectedCategoryId), note: drift.Value(noteCtrl.text.trim().isEmpty ? null : noteCtrl.text.trim()), transactionDate: date));
@@ -260,7 +303,8 @@ class _AddEditTransactionSheetState extends ConsumerState<AddEditTransactionShee
               withSpent.add(BudgetWithSpent(budget: b, spent: spent, category: b.categoryId != null ? catMap[b.categoryId] : null));
             }
             final relevant = withSpent.where((b) => b.budget.categoryId == selectedCategoryId || b.budget.categoryId == null).toList();
-            if (relevant.any((b) => b.isOver || b.isWarning)) {
+            final warnEnabled = (await db.getSettings())?.budgetWarningEnabled ?? true;
+            if (warnEnabled && relevant.any((b) => b.isOver || b.isWarning)) {
               // delay agar pop selesai, tampilkan via root scaffold
               Future.delayed(const Duration(milliseconds: 300), () {
                 if (savedContext.mounted) BudgetWarningHelper.showBudgetWarningSnackbars(savedContext, relevant);

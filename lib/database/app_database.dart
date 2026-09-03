@@ -8,6 +8,7 @@ import 'tables/budgets.dart';
 import 'tables/savings_goals.dart';
 import 'tables/savings_contributions.dart';
 import 'tables/app_settings.dart';
+import 'tables/recurring_transactions.dart';
 
 part 'app_database.g.dart';
 
@@ -18,6 +19,7 @@ part 'app_database.g.dart';
   SavingsGoals,
   SavingsContributions,
   AppSettings,
+  RecurringTransactions,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
@@ -38,7 +40,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -50,6 +52,19 @@ class AppDatabase extends _$AppDatabase {
         onUpgrade: (migrator, from, to) async {
           if (from < 2) {
             await _createIndexes();
+          }
+          // v3: kolom profil + toggle peringatan (ada default -> baris lama aman)
+          if (from < 3) {
+            await migrator.addColumn(appSettings, appSettings.profileName);
+            await migrator.addColumn(appSettings, appSettings.profileEmail);
+            await migrator.addColumn(appSettings, appSettings.budgetWarningEnabled);
+          }
+          // v4: tabel aturan berulang + kolom PIN (ada default -> aman)
+          if (from < 4) {
+            await migrator.createTable(recurringTransactions);
+            await migrator.addColumn(appSettings, appSettings.pinHash);
+            await customStatement(
+                'CREATE INDEX IF NOT EXISTS idx_recurring_nextDate ON recurring_transactions(next_date)');
           }
         },
         beforeOpen: (details) async {
@@ -213,6 +228,44 @@ class AppDatabase extends _$AppDatabase {
 
   Future<int> insertContribution(SavingsContributionsCompanion c) => into(savingsContributions).insert(c);
 
+  // ---- Transaksi berulang (v1.1) ----
+  Stream<List<RecurringTransaction>> watchRecurring() =>
+      (select(recurringTransactions)..orderBy([(r) => OrderingTerm.desc(r.createdAt)])).watch();
+
+  Future<int> insertRecurring(RecurringTransactionsCompanion r) => into(recurringTransactions).insert(r);
+  Future<bool> updateRecurring(RecurringTransaction r) => update(recurringTransactions).replace(r);
+  Future<int> deleteRecurring(int id) => (delete(recurringTransactions)..where((r) => r.id.equals(id))).go();
+
+  /// Generate transaksi yang jatuh tempo (nextDate <= hari ini).
+  /// Idempoten: nextDate dimajukan tiap generate, dipanggil tiap dashboard
+  /// dimuat. Kembalikan jumlah transaksi yang dibuat.
+  Future<int> processDueRecurring() async {
+    final todayEnd = () {
+      final now = DateTime.now();
+      return DateTime(now.year, now.month, now.day, 23, 59, 59);
+    }();
+    final rules = await (select(recurringTransactions)..where((r) => r.isActive.equals(true))).get();
+    var generated = 0;
+    for (final r in rules) {
+      var next = r.nextDate;
+      while (!next.isAfter(todayEnd) && generated < 370) {
+        await into(transactions).insert(TransactionsCompanion.insert(
+          amount: r.amount,
+          transactionType: r.transactionType,
+          categoryId: Value(r.categoryId),
+          note: Value(r.note == null ? 'Rutin (${r.frequency == 'weekly' ? 'mingguan' : 'bulanan'})' : '${r.note} (rutin)'),
+          transactionDate: DateTime(next.year, next.month, next.day, 9, 0),
+        ));
+        next = nextRecurrence(next, r.frequency);
+        generated++;
+      }
+      if (next != r.nextDate) {
+        await updateRecurring(r.copyWith(nextDate: next));
+      }
+    }
+    return generated;
+  }
+
   Future<AppSetting?> getSettings() async {
     final list = await select(appSettings).get();
     if (list.isEmpty) {
@@ -221,7 +274,7 @@ class AppDatabase extends _$AppDatabase {
         isDarkMode: Value(false),
         language: Value('id'),
       ));
-      return AppSetting(id: id, currency: 'IDR', isDarkMode: false, language: 'id', lastBackup: null);
+      return AppSetting(id: id, currency: 'IDR', isDarkMode: false, language: 'id', lastBackup: null, profileName: 'Pengguna', profileEmail: '', budgetWarningEnabled: true, pinHash: '');
     }
     return list.first;
   }

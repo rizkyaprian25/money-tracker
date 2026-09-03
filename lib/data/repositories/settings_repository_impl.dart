@@ -25,4 +25,10 @@ class SettingsRepositoryImpl implements SettingsRepository {
 
   @override
   Future<void> updateLastBackup(DateTime now) => db.updateSettings(AppSettingsCompanion(lastBackup: Value(now)));
+
+  Future<void> updateProfile({required String name, required String email}) =>
+      db.updateSettings(AppSettingsCompanion(profileName: Value(name), profileEmail: Value(email)));
+
+  Future<void> setBudgetWarningEnabled(bool value) =>
+      db.updateSettings(AppSettingsCompanion(budgetWarningEnabled: Value(value)));
 }

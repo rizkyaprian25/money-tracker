@@ -3,6 +3,6 @@ class AppConstants {
   static const String currencySymbol = 'Rp';
   static const String currencyCode = 'IDR';
   static const String locale = 'id_ID';
-  static const int dbVersion = 2;
+  static const int dbVersion = 4;
   static const double budgetWarningThreshold = 0.8;
 }

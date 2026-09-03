@@ -23,6 +23,10 @@ class ExportService {
     final budgets = await db.select(db.budgets).get();
     final goals = await db.select(db.savingsGoals).get();
     final contributions = await db.select(db.savingsContributions).get();
+    List<RecurringTransaction> recurring = [];
+    try {
+      recurring = await db.select(db.recurringTransactions).get();
+    } catch (_) {}
 
     final data = {
       'exportDate': DateTime.now().toIso8601String(),
@@ -66,6 +70,16 @@ class ExportService {
             'amount': c.amount,
             'date': c.date.toIso8601String(),
             'note': c.note,
+          }).toList(),
+      // v1.1: aturan berulang ikut di-backup (nextDate mentah)
+      'recurring': recurring.map((r) => {
+            'amount': r.amount,
+            'transactionType': r.transactionType,
+            'categoryId': r.categoryId,
+            'note': r.note,
+            'frequency': r.frequency,
+            'nextDate': r.nextDate.toIso8601String(),
+            'isActive': r.isActive,
           }).toList(),
     };
 
@@ -334,6 +348,23 @@ class ExportService {
             date: DateTime.parse(c['date'] as String),
             note: Value(c['note'] as String?),
           ));
+        }
+
+        // v1.1: restore aturan berulang (abaikan bila backup lama tak punya key)
+        final recurring = data['recurring'] as List? ?? [];
+        for (final r in recurring) {
+          try {
+            final oldCatId = r['categoryId'] as int?;
+            await db.into(db.recurringTransactions).insert(RecurringTransactionsCompanion.insert(
+              amount: (r['amount'] as num).toDouble(),
+              transactionType: r['transactionType'] as String,
+              categoryId: Value(oldCatId == null ? null : catIdMap[oldCatId]),
+              note: Value(r['note'] as String?),
+              frequency: Value(r['frequency'] as String? ?? 'monthly'),
+              nextDate: DateTime.parse(r['nextDate'] as String),
+              isActive: Value(r['isActive'] as bool? ?? true),
+            ));
+          } catch (_) {}
         }
       });
       return true;

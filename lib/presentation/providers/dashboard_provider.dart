@@ -21,6 +21,10 @@ class DashboardData {
 
 final dashboardProvider = FutureProvider<DashboardData>((ref) async {
   final db = ref.watch(databaseProvider);
+  // v1.1: generate transaksi berulang yang jatuh tempo (idempoten)
+  try {
+    await db.processDueRecurring();
+  } catch (_) {}
   // watch for invalidation
   final recent = await db.getTransactions(limit: 5);
   final now = DateTime.now();
