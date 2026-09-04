@@ -309,7 +309,7 @@ Dijalankan `onCreate` hanya jika `categories` kosong. **Sejak 2026-09-03: hanya 
 - **Notifikasi → Peringatan Anggaran (2026-09-03):** `SwitchListTile` bound ke `budgetWarningEnabled`; OFF mematikan snackbar 80% di `budget_screen` & `add_edit_transaction_sheet` (di-check sebelum tampil).
 - **Bantuan (2026-09-03):** bottom sheet FAQ offline 5 item (`_showHelpSheet`).
 - **Kunci Layar (2026-09-03, v1.1):** buat/ganti/nonaktifkan PIN — §8.12.
-- **Sidik Jari (2026-09-04, v1.1):** toggle `biometricEnabled`; tombol sidik di `LockScreen` bila hardware tersedia (`BiometricAuth.isAvailable`, paket `local_auth`, permission `USE_BIOMETRIC`).
+- **Sidik Jari (2026-09-04, v1.1):** toggle `biometricEnabled` (default MATI; nyala hanya bila pindai verifikasi sukses + pesan error spesifik per kode); tombol sidik di `LockScreen` (`local_auth`, permission `USE_BIOMETRIC`, **`MainActivity: FlutterFragmentActivity`** — wajib, kalau tidak error `no fragment activity`).
 - **Backup Otomatis (2026-09-04, v1.1):** pilihan Mati/Mingguan/Bulanan (`autoBackupFreq`); `ExportService.maybeAutoBackup()` jalan tiap Beranda dimuat, snapshot ke `auto_backups/` bila jatuh tempo + update `lastBackup`. Skema v5.
 - **Backup & Restore:** `Cadangkan & Pulihkan` sheet 2 opsi — `settings_screen.dart:191-223`.
 - **Ekspor 3 tombol:** PDF/Excel/JSON — `settings_screen.dart:105-110`.

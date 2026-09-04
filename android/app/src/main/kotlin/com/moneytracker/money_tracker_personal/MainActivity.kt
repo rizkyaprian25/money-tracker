@@ -1,5 +1,7 @@
 package com.moneytracker.money_tracker_personal
 
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 
-class MainActivity : FlutterActivity()
+// FlutterFragmentActivity (bukan FlutterActivity) — syarat local_auth
+// (sidik jari), kalau tidak error "no fragment activity".
+class MainActivity : FlutterFragmentActivity()
