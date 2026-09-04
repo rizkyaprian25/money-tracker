@@ -5,10 +5,17 @@
          Export tetap fallback Share.shareXFiles jika save gagal. -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+    <!-- v1.1: kunci biometrik (sidik jari) -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
+    <!-- Pentest 2026-09-04: allowBackup=false — DB keuangan JANGAN ikut
+         Auto Backup Google Drive (offline-first murni; backup via JSON in-app).
+         fullBackupOnly=false sekalian matikan key/value backup. -->
     <application
         android:label="Money Tracker"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupOnly="false">
         <activity
             android:name=".MainActivity"
             android:exported="true"

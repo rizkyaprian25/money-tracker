@@ -18,6 +18,15 @@ class ExportService {
   ExportService(this.db);
 
   Future<String> exportJson() async {
+    final data = await _buildBackupMap();
+    final jsonStr = jsonEncode(data);
+    final bytes = Uint8List.fromList(utf8.encode(jsonStr));
+    final fileName = 'money_tracker_backup_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.json';
+    return file_helper.saveBytes(fileName, bytes, mimeType: 'application/json');
+  }
+
+  /// Susun map backup dari isi DB saat ini (dipakai export + safety backup).
+  Future<Map<String, dynamic>> _buildBackupMap() async {
     final transactions = await db.select(db.transactions).get();
     final categories = await db.select(db.categories).get();
     final budgets = await db.select(db.budgets).get();
@@ -28,7 +37,7 @@ class ExportService {
       recurring = await db.select(db.recurringTransactions).get();
     } catch (_) {}
 
-    final data = {
+    return {
       'exportDate': DateTime.now().toIso8601String(),
       'version': 1,
       'categories': categories.map((c) => {
@@ -82,11 +91,56 @@ class ExportService {
             'isActive': r.isActive,
           }).toList(),
     };
+  }
 
-    final jsonStr = jsonEncode(data);
-    final bytes = Uint8List.fromList(utf8.encode(jsonStr));
-    final fileName = 'money_tracker_backup_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.json';
-    return file_helper.saveBytes(fileName, bytes, mimeType: 'application/json');
+  /// Ringkasan isi file backup: jumlah per tabel. Throw bila bukan JSON valid.
+  static Map<String, int> backupSummary(String content) {
+    final data = jsonDecode(content) as Map<String, dynamic>;
+    int count(String key) => (data[key] as List? ?? []).length;
+    return {
+      'transactions': count('transactions'),
+      'categories': count('categories'),
+      'budgets': count('budgets'),
+      'savingsGoals': count('savingsGoals'),
+    };
+  }
+
+  /// Jumlah data saat ini di DB (untuk dialog konfirmasi restore).
+  Future<Map<String, int>> currentCounts() async {
+    int tx = 0, cat = 0, bud = 0, goal = 0;
+    try {
+      tx = (await db.select(db.transactions).get()).length;
+      cat = (await db.select(db.categories).get()).length;
+      bud = (await db.select(db.budgets).get()).length;
+      goal = (await db.select(db.savingsGoals).get()).length;
+    } catch (_) {}
+    return {'transactions': tx, 'categories': cat, 'budgets': bud, 'savingsGoals': goal};
+  }
+
+  /// Backup otomatis terjadwal (v1.1): dipanggil tiap dashboard dimuat.
+  /// Membuat snapshot hanya bila jadwal (`off`/`weekly`/`monthly`) jatuh tempo
+  /// sejak `lastBackup` (manual maupun otomatis). IO saja; web selalu false.
+  /// True bila snapshot baru dibuat.
+  Future<bool> maybeAutoBackup() async {
+    try {
+      final s = await db.getSettings();
+      final freq = s?.autoBackupFreq ?? 'weekly';
+      if (freq == 'off') return false;
+      final intervalDays = freq == 'monthly' ? 30 : 7;
+      final last = s?.lastBackup;
+      if (last != null && DateTime.now().difference(last).inDays < intervalDays) return false;
+      final snapshot = jsonEncode(await _buildBackupMap());
+      final stamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+      final path = await file_helper.saveAutoBackup(
+        'auto_backup_$stamp.json',
+        Uint8List.fromList(utf8.encode(snapshot)),
+      );
+      if (path.isEmpty) return false;
+      await db.updateSettings(AppSettingsCompanion(lastBackup: Value(DateTime.now())));
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<String> exportPdf() async {
@@ -272,6 +326,18 @@ class ExportService {
   Future<bool> importJsonString(String content) async {
     try {
       final data = jsonDecode(content) as Map<String, dynamic>;
+
+      // Pengaman (2026-09-04): snapshot DB saat ini SEBELUM wipe, agar
+      // restore yang salah tidak pernah menghilangkan data permanen.
+      // Disimpan di documents/auto_backups (3 terbaru). Web: no-op.
+      try {
+        final snapshot = jsonEncode(await _buildBackupMap());
+        final stamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+        await file_helper.saveAutoBackup(
+          'auto_backup_$stamp.json',
+          Uint8List.fromList(utf8.encode(snapshot)),
+        );
+      } catch (_) {}
 
       await db.transaction(() async {
         await db.delete(db.savingsContributions).go();

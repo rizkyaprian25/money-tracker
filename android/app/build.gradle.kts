@@ -19,12 +19,29 @@ android {
         applicationId = "com.moneytracker.money_tracker_personal"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        // ERROR.md §2.1: sqlite3_flutter_libs 0.5.27 butuh minSdk >= 21 (Android 5.0).
-        // Pin eksplisit 21 agar verifiable (flutter.minSdkVersion juga 21, tapi implisit).
-        minSdk = flutter.minSdkVersion
+        // Pentest 2026-09-04: minSdk 24 eksplisit (hasil merge memang 24 —
+        // ada plugin yang butuh 24; 21 tidak pernah efektif).
+        minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Pentest 2026-09-04: hanya arm64 — plugin ikut membundel .so
+        // armeabi-v7a/x86_64 yang tak terpakai (hemat ~1-2MB).
+        // Catatan: abiFilters saja TIDAK cukup (plugin Flutter menimpa
+        // daftarnya), jadi exclude eksplisit di packaging.
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
+    }
+
+    packaging {
+        jniLibs {
+            excludes += setOf(
+                "lib/armeabi-v7a/*",
+                "lib/x86/*",
+                "lib/x86_64/*"
+            )
+        }
     }
 
     buildTypes {

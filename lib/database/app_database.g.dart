@@ -2261,6 +2261,45 @@ class $AppSettingsTable extends AppSettings
     requiredDuringInsert: false,
     defaultValue: const Constant(''),
   );
+  static const VerificationMeta _biometricEnabledMeta = const VerificationMeta(
+    'biometricEnabled',
+  );
+  @override
+  late final GeneratedColumn<bool> biometricEnabled = GeneratedColumn<bool>(
+    'biometric_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("biometric_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _autoBackupFreqMeta = const VerificationMeta(
+    'autoBackupFreq',
+  );
+  @override
+  late final GeneratedColumn<String> autoBackupFreq = GeneratedColumn<String>(
+    'auto_backup_freq',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('weekly'),
+  );
+  static const VerificationMeta _pinSaltMeta = const VerificationMeta(
+    'pinSalt',
+  );
+  @override
+  late final GeneratedColumn<String> pinSalt = GeneratedColumn<String>(
+    'pin_salt',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -2272,6 +2311,9 @@ class $AppSettingsTable extends AppSettings
     profileEmail,
     budgetWarningEnabled,
     pinHash,
+    biometricEnabled,
+    autoBackupFreq,
+    pinSalt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2348,6 +2390,30 @@ class $AppSettingsTable extends AppSettings
         pinHash.isAcceptableOrUnknown(data['pin_hash']!, _pinHashMeta),
       );
     }
+    if (data.containsKey('biometric_enabled')) {
+      context.handle(
+        _biometricEnabledMeta,
+        biometricEnabled.isAcceptableOrUnknown(
+          data['biometric_enabled']!,
+          _biometricEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('auto_backup_freq')) {
+      context.handle(
+        _autoBackupFreqMeta,
+        autoBackupFreq.isAcceptableOrUnknown(
+          data['auto_backup_freq']!,
+          _autoBackupFreqMeta,
+        ),
+      );
+    }
+    if (data.containsKey('pin_salt')) {
+      context.handle(
+        _pinSaltMeta,
+        pinSalt.isAcceptableOrUnknown(data['pin_salt']!, _pinSaltMeta),
+      );
+    }
     return context;
   }
 
@@ -2393,6 +2459,18 @@ class $AppSettingsTable extends AppSettings
         DriftSqlType.string,
         data['${effectivePrefix}pin_hash'],
       )!,
+      biometricEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}biometric_enabled'],
+      )!,
+      autoBackupFreq: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}auto_backup_freq'],
+      )!,
+      pinSalt: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}pin_salt'],
+      )!,
     );
   }
 
@@ -2412,6 +2490,9 @@ class AppSetting extends DataClass implements Insertable<AppSetting> {
   final String profileEmail;
   final bool budgetWarningEnabled;
   final String pinHash;
+  final bool biometricEnabled;
+  final String autoBackupFreq;
+  final String pinSalt;
   const AppSetting({
     required this.id,
     required this.currency,
@@ -2422,6 +2503,9 @@ class AppSetting extends DataClass implements Insertable<AppSetting> {
     required this.profileEmail,
     required this.budgetWarningEnabled,
     required this.pinHash,
+    required this.biometricEnabled,
+    required this.autoBackupFreq,
+    required this.pinSalt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2437,6 +2521,9 @@ class AppSetting extends DataClass implements Insertable<AppSetting> {
     map['profile_email'] = Variable<String>(profileEmail);
     map['budget_warning_enabled'] = Variable<bool>(budgetWarningEnabled);
     map['pin_hash'] = Variable<String>(pinHash);
+    map['biometric_enabled'] = Variable<bool>(biometricEnabled);
+    map['auto_backup_freq'] = Variable<String>(autoBackupFreq);
+    map['pin_salt'] = Variable<String>(pinSalt);
     return map;
   }
 
@@ -2453,6 +2540,9 @@ class AppSetting extends DataClass implements Insertable<AppSetting> {
       profileEmail: Value(profileEmail),
       budgetWarningEnabled: Value(budgetWarningEnabled),
       pinHash: Value(pinHash),
+      biometricEnabled: Value(biometricEnabled),
+      autoBackupFreq: Value(autoBackupFreq),
+      pinSalt: Value(pinSalt),
     );
   }
 
@@ -2473,6 +2563,9 @@ class AppSetting extends DataClass implements Insertable<AppSetting> {
         json['budgetWarningEnabled'],
       ),
       pinHash: serializer.fromJson<String>(json['pinHash']),
+      biometricEnabled: serializer.fromJson<bool>(json['biometricEnabled']),
+      autoBackupFreq: serializer.fromJson<String>(json['autoBackupFreq']),
+      pinSalt: serializer.fromJson<String>(json['pinSalt']),
     );
   }
   @override
@@ -2488,6 +2581,9 @@ class AppSetting extends DataClass implements Insertable<AppSetting> {
       'profileEmail': serializer.toJson<String>(profileEmail),
       'budgetWarningEnabled': serializer.toJson<bool>(budgetWarningEnabled),
       'pinHash': serializer.toJson<String>(pinHash),
+      'biometricEnabled': serializer.toJson<bool>(biometricEnabled),
+      'autoBackupFreq': serializer.toJson<String>(autoBackupFreq),
+      'pinSalt': serializer.toJson<String>(pinSalt),
     };
   }
 
@@ -2501,6 +2597,9 @@ class AppSetting extends DataClass implements Insertable<AppSetting> {
     String? profileEmail,
     bool? budgetWarningEnabled,
     String? pinHash,
+    bool? biometricEnabled,
+    String? autoBackupFreq,
+    String? pinSalt,
   }) => AppSetting(
     id: id ?? this.id,
     currency: currency ?? this.currency,
@@ -2511,6 +2610,9 @@ class AppSetting extends DataClass implements Insertable<AppSetting> {
     profileEmail: profileEmail ?? this.profileEmail,
     budgetWarningEnabled: budgetWarningEnabled ?? this.budgetWarningEnabled,
     pinHash: pinHash ?? this.pinHash,
+    biometricEnabled: biometricEnabled ?? this.biometricEnabled,
+    autoBackupFreq: autoBackupFreq ?? this.autoBackupFreq,
+    pinSalt: pinSalt ?? this.pinSalt,
   );
   AppSetting copyWithCompanion(AppSettingsCompanion data) {
     return AppSetting(
@@ -2533,6 +2635,13 @@ class AppSetting extends DataClass implements Insertable<AppSetting> {
           ? data.budgetWarningEnabled.value
           : this.budgetWarningEnabled,
       pinHash: data.pinHash.present ? data.pinHash.value : this.pinHash,
+      biometricEnabled: data.biometricEnabled.present
+          ? data.biometricEnabled.value
+          : this.biometricEnabled,
+      autoBackupFreq: data.autoBackupFreq.present
+          ? data.autoBackupFreq.value
+          : this.autoBackupFreq,
+      pinSalt: data.pinSalt.present ? data.pinSalt.value : this.pinSalt,
     );
   }
 
@@ -2547,7 +2656,10 @@ class AppSetting extends DataClass implements Insertable<AppSetting> {
           ..write('profileName: $profileName, ')
           ..write('profileEmail: $profileEmail, ')
           ..write('budgetWarningEnabled: $budgetWarningEnabled, ')
-          ..write('pinHash: $pinHash')
+          ..write('pinHash: $pinHash, ')
+          ..write('biometricEnabled: $biometricEnabled, ')
+          ..write('autoBackupFreq: $autoBackupFreq, ')
+          ..write('pinSalt: $pinSalt')
           ..write(')'))
         .toString();
   }
@@ -2563,6 +2675,9 @@ class AppSetting extends DataClass implements Insertable<AppSetting> {
     profileEmail,
     budgetWarningEnabled,
     pinHash,
+    biometricEnabled,
+    autoBackupFreq,
+    pinSalt,
   );
   @override
   bool operator ==(Object other) =>
@@ -2576,7 +2691,10 @@ class AppSetting extends DataClass implements Insertable<AppSetting> {
           other.profileName == this.profileName &&
           other.profileEmail == this.profileEmail &&
           other.budgetWarningEnabled == this.budgetWarningEnabled &&
-          other.pinHash == this.pinHash);
+          other.pinHash == this.pinHash &&
+          other.biometricEnabled == this.biometricEnabled &&
+          other.autoBackupFreq == this.autoBackupFreq &&
+          other.pinSalt == this.pinSalt);
 }
 
 class AppSettingsCompanion extends UpdateCompanion<AppSetting> {
@@ -2589,6 +2707,9 @@ class AppSettingsCompanion extends UpdateCompanion<AppSetting> {
   final Value<String> profileEmail;
   final Value<bool> budgetWarningEnabled;
   final Value<String> pinHash;
+  final Value<bool> biometricEnabled;
+  final Value<String> autoBackupFreq;
+  final Value<String> pinSalt;
   const AppSettingsCompanion({
     this.id = const Value.absent(),
     this.currency = const Value.absent(),
@@ -2599,6 +2720,9 @@ class AppSettingsCompanion extends UpdateCompanion<AppSetting> {
     this.profileEmail = const Value.absent(),
     this.budgetWarningEnabled = const Value.absent(),
     this.pinHash = const Value.absent(),
+    this.biometricEnabled = const Value.absent(),
+    this.autoBackupFreq = const Value.absent(),
+    this.pinSalt = const Value.absent(),
   });
   AppSettingsCompanion.insert({
     this.id = const Value.absent(),
@@ -2610,6 +2734,9 @@ class AppSettingsCompanion extends UpdateCompanion<AppSetting> {
     this.profileEmail = const Value.absent(),
     this.budgetWarningEnabled = const Value.absent(),
     this.pinHash = const Value.absent(),
+    this.biometricEnabled = const Value.absent(),
+    this.autoBackupFreq = const Value.absent(),
+    this.pinSalt = const Value.absent(),
   });
   static Insertable<AppSetting> custom({
     Expression<int>? id,
@@ -2621,6 +2748,9 @@ class AppSettingsCompanion extends UpdateCompanion<AppSetting> {
     Expression<String>? profileEmail,
     Expression<bool>? budgetWarningEnabled,
     Expression<String>? pinHash,
+    Expression<bool>? biometricEnabled,
+    Expression<String>? autoBackupFreq,
+    Expression<String>? pinSalt,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -2633,6 +2763,9 @@ class AppSettingsCompanion extends UpdateCompanion<AppSetting> {
       if (budgetWarningEnabled != null)
         'budget_warning_enabled': budgetWarningEnabled,
       if (pinHash != null) 'pin_hash': pinHash,
+      if (biometricEnabled != null) 'biometric_enabled': biometricEnabled,
+      if (autoBackupFreq != null) 'auto_backup_freq': autoBackupFreq,
+      if (pinSalt != null) 'pin_salt': pinSalt,
     });
   }
 
@@ -2646,6 +2779,9 @@ class AppSettingsCompanion extends UpdateCompanion<AppSetting> {
     Value<String>? profileEmail,
     Value<bool>? budgetWarningEnabled,
     Value<String>? pinHash,
+    Value<bool>? biometricEnabled,
+    Value<String>? autoBackupFreq,
+    Value<String>? pinSalt,
   }) {
     return AppSettingsCompanion(
       id: id ?? this.id,
@@ -2657,6 +2793,9 @@ class AppSettingsCompanion extends UpdateCompanion<AppSetting> {
       profileEmail: profileEmail ?? this.profileEmail,
       budgetWarningEnabled: budgetWarningEnabled ?? this.budgetWarningEnabled,
       pinHash: pinHash ?? this.pinHash,
+      biometricEnabled: biometricEnabled ?? this.biometricEnabled,
+      autoBackupFreq: autoBackupFreq ?? this.autoBackupFreq,
+      pinSalt: pinSalt ?? this.pinSalt,
     );
   }
 
@@ -2692,6 +2831,15 @@ class AppSettingsCompanion extends UpdateCompanion<AppSetting> {
     if (pinHash.present) {
       map['pin_hash'] = Variable<String>(pinHash.value);
     }
+    if (biometricEnabled.present) {
+      map['biometric_enabled'] = Variable<bool>(biometricEnabled.value);
+    }
+    if (autoBackupFreq.present) {
+      map['auto_backup_freq'] = Variable<String>(autoBackupFreq.value);
+    }
+    if (pinSalt.present) {
+      map['pin_salt'] = Variable<String>(pinSalt.value);
+    }
     return map;
   }
 
@@ -2706,7 +2854,10 @@ class AppSettingsCompanion extends UpdateCompanion<AppSetting> {
           ..write('profileName: $profileName, ')
           ..write('profileEmail: $profileEmail, ')
           ..write('budgetWarningEnabled: $budgetWarningEnabled, ')
-          ..write('pinHash: $pinHash')
+          ..write('pinHash: $pinHash, ')
+          ..write('biometricEnabled: $biometricEnabled, ')
+          ..write('autoBackupFreq: $autoBackupFreq, ')
+          ..write('pinSalt: $pinSalt')
           ..write(')'))
         .toString();
   }
@@ -4441,6 +4592,9 @@ typedef $$AppSettingsTableCreateCompanionBuilder =
       Value<String> profileEmail,
       Value<bool> budgetWarningEnabled,
       Value<String> pinHash,
+      Value<bool> biometricEnabled,
+      Value<String> autoBackupFreq,
+      Value<String> pinSalt,
     });
 typedef $$AppSettingsTableUpdateCompanionBuilder =
     AppSettingsCompanion Function({
@@ -4453,6 +4607,9 @@ typedef $$AppSettingsTableUpdateCompanionBuilder =
       Value<String> profileEmail,
       Value<bool> budgetWarningEnabled,
       Value<String> pinHash,
+      Value<bool> biometricEnabled,
+      Value<String> autoBackupFreq,
+      Value<String> pinSalt,
     });
 
 class $$AppSettingsTableFilterComposer
@@ -4506,6 +4663,21 @@ class $$AppSettingsTableFilterComposer
 
   ColumnFilters<String> get pinHash => $composableBuilder(
     column: $table.pinHash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get biometricEnabled => $composableBuilder(
+    column: $table.biometricEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get autoBackupFreq => $composableBuilder(
+    column: $table.autoBackupFreq,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get pinSalt => $composableBuilder(
+    column: $table.pinSalt,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -4563,6 +4735,21 @@ class $$AppSettingsTableOrderingComposer
     column: $table.pinHash,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get biometricEnabled => $composableBuilder(
+    column: $table.biometricEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get autoBackupFreq => $composableBuilder(
+    column: $table.autoBackupFreq,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get pinSalt => $composableBuilder(
+    column: $table.pinSalt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$AppSettingsTableAnnotationComposer
@@ -4610,6 +4797,19 @@ class $$AppSettingsTableAnnotationComposer
 
   GeneratedColumn<String> get pinHash =>
       $composableBuilder(column: $table.pinHash, builder: (column) => column);
+
+  GeneratedColumn<bool> get biometricEnabled => $composableBuilder(
+    column: $table.biometricEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get autoBackupFreq => $composableBuilder(
+    column: $table.autoBackupFreq,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get pinSalt =>
+      $composableBuilder(column: $table.pinSalt, builder: (column) => column);
 }
 
 class $$AppSettingsTableTableManager
@@ -4652,6 +4852,9 @@ class $$AppSettingsTableTableManager
                 Value<String> profileEmail = const Value.absent(),
                 Value<bool> budgetWarningEnabled = const Value.absent(),
                 Value<String> pinHash = const Value.absent(),
+                Value<bool> biometricEnabled = const Value.absent(),
+                Value<String> autoBackupFreq = const Value.absent(),
+                Value<String> pinSalt = const Value.absent(),
               }) => AppSettingsCompanion(
                 id: id,
                 currency: currency,
@@ -4662,6 +4865,9 @@ class $$AppSettingsTableTableManager
                 profileEmail: profileEmail,
                 budgetWarningEnabled: budgetWarningEnabled,
                 pinHash: pinHash,
+                biometricEnabled: biometricEnabled,
+                autoBackupFreq: autoBackupFreq,
+                pinSalt: pinSalt,
               ),
           createCompanionCallback:
               ({
@@ -4674,6 +4880,9 @@ class $$AppSettingsTableTableManager
                 Value<String> profileEmail = const Value.absent(),
                 Value<bool> budgetWarningEnabled = const Value.absent(),
                 Value<String> pinHash = const Value.absent(),
+                Value<bool> biometricEnabled = const Value.absent(),
+                Value<String> autoBackupFreq = const Value.absent(),
+                Value<String> pinSalt = const Value.absent(),
               }) => AppSettingsCompanion.insert(
                 id: id,
                 currency: currency,
@@ -4684,6 +4893,9 @@ class $$AppSettingsTableTableManager
                 profileEmail: profileEmail,
                 budgetWarningEnabled: budgetWarningEnabled,
                 pinHash: pinHash,
+                biometricEnabled: biometricEnabled,
+                autoBackupFreq: autoBackupFreq,
+                pinSalt: pinSalt,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

@@ -282,4 +282,31 @@ flutter build apk --release # final APK
 
 ---
 
+## 7. Insiden: Restore Menghapus Transaksi (2026-09-04 — diperkeras)
+
+- **Gejala:** setelah update APK, semua transaksi hilang, tapi nama profil + PIN (tabel `app_settings`) utuh.
+- **Akar masalah:** satu-satunya wipe massal di kode adalah `importJsonString` (`export_service.dart`) — ia menghapus 5 tabel tapi **sengaja tidak menyentuh `app_settings`**. Sidik jari cocok persis: restore dari backup yang isi transaksinya kosong (mis. backup dibuat saat DB masih kosong, lalu dipulihkan setelah data asli masuk) menghapus diam-diam tanpa konfirmasi. Bukan bug `flutter install` (`adb install -r` mempertahankan data) dan bukan bug migrasi (semua migrasi non-destruktif).
+- **Perbaikan:**
+  1. `importJsonString` selalu menyimpan snapshot DB ke `documents/auto_backups/` (3 terbaru) **sebelum** wipe — `saveAutoBackup()` (`file_helper` + `_io/_web/_stub`).
+  2. UI restore (`_showBackupRestore`): baca + validasi file dulu (`backupSummary`), tampilkan dialog konfirmasi berisi perbandingan isi file vs DB saat ini. File invalid ditolak dengan pesan.
+- **Pemulihan bila sudah terjadi:** cek file `money_tracker_backup_*.json` di HP (folder Download/share) → Pulihkan dari File. Tanpa backup, baris SQLite yang terhapus tidak bisa kembali.
+
+---
+
+## 8. Pentest Ringan (2026-09-04 — `aapt2` + audit kode; `dart pub audit` tak tersedia di Dart 3.12)
+
+Metode: `aapt2 dump badging/xmltree` pada APK release + `jar tf` (isi `.so`) + grep secret di `lib/` (nihil) + review permission/manifest. Tidak ada backend (offline) jadi fokus ke APK + penyimpanan lokal.
+
+| # | Temuan | Level | Status |
+|---|---|---|---|
+| P1 | `allowBackup` default true → DB keuangan ikut Auto Backup Google Drive | Medium | ✅ FIX: `allowBackup=false` + `fullBackupOnly=false` (`AndroidManifest.xml`; backup resmi via JSON in-app) |
+| P2 | Salt PIN statis app-wide → hash PIN sama di semua install | Medium | ✅ FIX: salt acak per-install (`pinSalt`, skema v6) + upgrade transparan PIN lama (`verifyLegacy`) |
+| P3 | `.so` plugin (`sqlite3`, `dartjni`) ikut untuk 3 ABI (+-3MB) meski build arm64 | Low | ✅ FIX: `packaging.jniLibs.excludes` (`abiFilters` saja terbukti tak mempan — plugin Flutter menimpanya). APK 24.8 → **21.6MB** |
+| P4 | `minSdk` efektif 24 padahal `build.gradle` tulis 21 (plugin menaikkan) | Info | ✅ FIX: tulis eksplisit `24` (jujur; Android 5-6 memang tak didukung) |
+| P5 | Tanpa permission `INTERNET` → font Inter gagal fetch di HP, fallback font sistem | Low | ⏳ Tunda: bundel font +1MB; tampilan tetap rapi. Opsi kapan saja |
+| P6 | Layar sensitif terlihat di recent-apps (tanpa `FLAG_SECURE`) | Low | ⏳ Backlog: butuh kode native `MainActivity` |
+| — | `debuggable` false, tanpa `INTERNET`/lokasi/SMS, provider `exported=false`, `taskAffinity=""`, `extractNativeLibs=false`, tanpa secret di kode, dependensi tanpa advisory kritis yang relevan (offline, tanpa parsing file asing kecuali Excel/JSON user sendiri) | Aman | ✅ Lolos |
+
+---
+
 *Dokumen ini single source untuk troubleshooting. Update tiap tambah error baru. Rujuk `PRD.md:19` & `AGENTS.md:1-40`.*

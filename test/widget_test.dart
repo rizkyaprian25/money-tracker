@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:money_tracker_personal/core/constants/app_constants.dart';
@@ -35,6 +36,10 @@ void main() {
     test('formatCompact menyingkat jt/M', () {
       expect(CurrencyFormatter.formatCompact(2500000).contains('jt'), isTrue);
       expect(CurrencyFormatter.formatCompact(1500000000).contains('M'), isTrue);
+    });
+
+    test('formatWithoutSymbol memakai titik ribuan', () {
+      expect(CurrencyFormatter.formatWithoutSymbol(700000), '700.000');
     });
   });
 
@@ -73,11 +78,17 @@ void main() {
 
   group('PinHasher kunci layar (v1.1)', () {
     test('hash deterministik & verify benar/salah', () {
-      final h1 = PinHasher.hash('123456');
-      expect(h1, PinHasher.hash('123456'));
-      expect(PinHasher.verify('123456', h1), isTrue);
-      expect(PinHasher.verify('654321', h1), isFalse);
-      expect(PinHasher.verify('123456', ''), isFalse);
+      const salt = 'abc123';
+      final h1 = PinHasher.hash('123456', salt);
+      expect(h1, PinHasher.hash('123456', salt));
+      expect(PinHasher.verify('123456', h1, salt), isTrue);
+      expect(PinHasher.verify('654321', h1, salt), isFalse);
+      expect(PinHasher.verify('123456', '', salt), isFalse);
+    });
+
+    test('salt berbeda -> hash berbeda', () {
+      expect(PinHasher.hash('123456', 's1'), isNot(PinHasher.hash('123456', 's2')));
+      expect(PinHasher.generateSalt().length, 32);
     });
 
     test('format hanya 6 digit angka', () {
@@ -91,13 +102,21 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: BalanceCard(balance: 4250750, income: 7350000, expense: 3099250),
+      const ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(
+            body: BalanceCard(balance: 4250750, income: 7350000, expense: 3099250),
+          ),
         ),
       ),
     );
     expect(find.text('Saldo Saat Ini'), findsOneWidget);
     expect(find.text(CurrencyFormatter.format(4250750)), findsOneWidget);
+    expect(find.byIcon(Icons.visibility), findsOneWidget);
+    // Ketuk mata -> nominal disensor
+    await tester.tap(find.byIcon(Icons.visibility));
+    await tester.pump();
+    expect(find.text('Rp ••••••'), findsNWidgets(3));
+    expect(find.byIcon(Icons.visibility_off), findsOneWidget);
   });
 }

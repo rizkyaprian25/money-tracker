@@ -8,6 +8,9 @@ class AppSettingsEntity {
   final String profileName;
   final String profileEmail;
   final bool budgetWarningEnabled;
+  final bool biometricEnabled;
+  final String autoBackupFreq; // off | weekly | monthly
+  final String pinSalt;
 
   const AppSettingsEntity({
     required this.id,
@@ -18,6 +21,9 @@ class AppSettingsEntity {
     this.profileName = 'Pengguna',
     this.profileEmail = '',
     this.budgetWarningEnabled = true,
+    this.biometricEnabled = false,
+    this.autoBackupFreq = 'weekly',
+    this.pinSalt = '',
   });
 
   AppSettingsEntity copyWith({
@@ -29,6 +35,9 @@ class AppSettingsEntity {
     String? profileName,
     String? profileEmail,
     bool? budgetWarningEnabled,
+    bool? biometricEnabled,
+    String? autoBackupFreq,
+    String? pinSalt,
   }) =>
       AppSettingsEntity(
         id: id ?? this.id,
@@ -39,5 +48,8 @@ class AppSettingsEntity {
         profileName: profileName ?? this.profileName,
         profileEmail: profileEmail ?? this.profileEmail,
         budgetWarningEnabled: budgetWarningEnabled ?? this.budgetWarningEnabled,
+        biometricEnabled: biometricEnabled ?? this.biometricEnabled,
+        autoBackupFreq: autoBackupFreq ?? this.autoBackupFreq,
+        pinSalt: pinSalt ?? this.pinSalt,
       );
 }

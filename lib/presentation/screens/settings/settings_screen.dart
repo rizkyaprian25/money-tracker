@@ -1,9 +1,12 @@
+import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/utils/pin_hasher.dart';
+import '../../../services/biometric_auth.dart';
 import '../../../services/export_service.dart';
+import '../../../services/platform/file_helper.dart' as file_helper;
 import '../../providers/database_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/category_provider.dart';
@@ -83,6 +86,14 @@ class SettingsScreen extends ConsumerWidget {
                   trailing: Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
                   onTap: () => _showLockSheet(context, ref),
                 ),
+                Divider(height: 1, indent: 56, color: scheme.outlineVariant.withValues(alpha: 0.3)),
+                SwitchListTile(
+                  secondary: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: scheme.surfaceContainerHighest.withValues(alpha: 0.5), shape: BoxShape.circle), child: Icon(Icons.fingerprint, size: 18, color: scheme.onSurfaceVariant)),
+                  title: const Text('Sidik Jari', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                  subtitle: Text((settings?.biometricEnabled ?? false) ? 'Buka kunci tanpa PIN bila tersedia' : 'Nonaktif — hanya PIN', style: const TextStyle(fontSize: 12)),
+                  value: settings?.biometricEnabled ?? false,
+                  onChanged: (v) => _toggleBiometric(context, ref, v),
+                ),
               ]),
             ),
             const SizedBox(height: 20),
@@ -97,6 +108,14 @@ class SettingsScreen extends ConsumerWidget {
                   subtitle: Text(settings?.lastBackup != null ? 'Cadangan terakhir: ${DateFormat('d MMM yyyy HH:mm', 'id_ID').format(settings!.lastBackup!)}' : 'Belum ada cadangan', style: const TextStyle(fontSize: 12)),
                   trailing: Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
                   onTap: () => _showBackupRestore(context, ref),
+                ),
+                Divider(height: 1, indent: 56, color: scheme.outlineVariant.withValues(alpha: 0.3)),
+                ListTile(
+                  leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: scheme.surfaceContainerHighest.withValues(alpha: 0.5), shape: BoxShape.circle), child: Icon(Icons.schedule, size: 18, color: scheme.onSurfaceVariant)),
+                  title: const Text('Backup Otomatis', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                  subtitle: Text(_autoBackupLabel(settings?.autoBackupFreq ?? 'weekly'), style: const TextStyle(fontSize: 12)),
+                  trailing: Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
+                  onTap: () => _showAutoBackupDialog(context, ref),
                 ),
                 Divider(height: 1, indent: 56, color: scheme.outlineVariant.withValues(alpha: 0.3)),
                 Padding(
@@ -160,7 +179,7 @@ class SettingsScreen extends ConsumerWidget {
                 Text('Money Tracker Personal', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant.withValues(alpha: 0.7))),
                 Text('Versi 1.0.0 (Build 1)', style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant.withValues(alpha: 0.7))),
                 const SizedBox(height: 4),
-                Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text('Dibuat dengan ', style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant.withValues(alpha: 0.7))), Icon(Icons.favorite, size: 12, color: scheme.error), Text(' oleh Money Tracker', style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant.withValues(alpha: 0.7)))]),
+                Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text('Dibuat dengan ', style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant.withValues(alpha: 0.7))), Text(' oleh Boboyy', style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant.withValues(alpha: 0.7)))]),
               ]),
             ),
           ],
@@ -197,8 +216,51 @@ class SettingsScreen extends ConsumerWidget {
     }
   }
 
-  void _showBackupRestore(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet(
+  String _autoBackupLabel(String freq) {
+    switch (freq) {
+      case 'off':
+        return 'Mati';
+      case 'monthly':
+        return 'Setiap bulan';
+      case 'weekly':
+      default:
+        return 'Setiap minggu';
+    }
+  }
+
+  void _showAutoBackupDialog(BuildContext context, WidgetRef ref) {
+    final current = ref.read(settingsStreamProvider).valueOrNull?.autoBackupFreq ?? 'weekly';
+    const options = {'off': 'Mati', 'weekly': 'Setiap minggu', 'monthly': 'Setiap bulan'};
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Backup Otomatis'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          RadioGroup<String>(
+            groupValue: current,
+            onChanged: (v) async {
+              if (v != null) await ref.read(settingsNotifierProvider).setAutoBackupFreq(v);
+              if (c.mounted) Navigator.pop(c);
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final e in options.entries)
+                  RadioListTile<String>(
+                    title: Text(e.value),
+                    subtitle: e.key == 'off' ? null : const Text('Disimpan di aplikasi, tanpa perlu ingat', style: TextStyle(fontSize: 12)),
+                    value: e.key,
+                  ),
+              ],
+            ),
+          ),
+        ]),
+        actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('Tutup'))],
+      ),
+    );
+  }
+
+  void _showBackupRestore(BuildContext context, WidgetRef ref) {    showModalBottomSheet(
       context: context,
       backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
@@ -216,19 +278,61 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () async {
               Navigator.pop(c);
               final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['json'], withData: true);
-              if (result != null && result.files.singleOrNull != null) {
-                final file = result.files.single;
-                final service = ExportService(ref.read(databaseProvider));
-                bool ok = false;
-                if (file.bytes != null) {
-                  ok = await service.importJsonBytes(file.bytes!);
-                } else if (file.path != null) {
-                  ok = await service.importJson(file.path!);
-                }
+              if (result == null || result.files.singleOrNull == null) return;
+              final file = result.files.single;
+              final service = ExportService(ref.read(databaseProvider));
+              // Baca isi file dulu (jangan langsung timpa DB)
+              String? content;
+              if (file.bytes != null) {
+                try {
+                  content = utf8.decode(file.bytes!);
+                } catch (_) {}
+              } else if (file.path != null) {
+                try {
+                  content = await file_helper.readFileAsString(file.path!);
+                } catch (_) {}
+              }
+              if (content == null) {
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Berhasil dipulihkan!' : 'Gagal memulihkan'), backgroundColor: ok ? Theme.of(context).colorScheme.secondary : Theme.of(context).colorScheme.error));
-                  if (ok) await ref.read(settingsNotifierProvider).updateLastBackup(DateTime.now());
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gagal membaca file'), backgroundColor: Theme.of(context).colorScheme.error));
                 }
+                return;
+              }
+              Map<String, int>? summary;
+              try {
+                summary = ExportService.backupSummary(content);
+              } catch (_) {
+                summary = null;
+              }
+              if (summary == null) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('File bukan backup valid'), backgroundColor: Theme.of(context).colorScheme.error));
+                }
+                return;
+              }
+              final current = await service.currentCounts();
+              if (!context.mounted) return;
+              // Konfirmasi dengan perbandingan isi (anti salah-restore)
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (d) => AlertDialog(
+                  title: const Text('Pulihkan Backup?'),
+                  content: Text(
+                    'File backup:\n• ${summary!['transactions']} transaksi • ${summary['categories']} kategori\n'
+                    'Data saat ini:\n• ${current['transactions']} transaksi • ${current['categories']} kategori\n\n'
+                    'Data saat ini akan DIGANTI seluruhnya. Salinan pengaman dibuat otomatis.',
+                  ),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Batal')),
+                    FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Pulihkan')),
+                  ],
+                ),
+              );
+              if (confirm != true || !context.mounted) return;
+              final ok = await service.importJsonString(content);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Berhasil dipulihkan!' : 'Gagal memulihkan'), backgroundColor: ok ? Theme.of(context).colorScheme.secondary : Theme.of(context).colorScheme.error));
+                if (ok) await ref.read(settingsNotifierProvider).updateLastBackup(DateTime.now());
               }
             },
           ),
@@ -339,6 +443,29 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
+  /// Nyalakan sidik jari HANYA bila pindai verifikasi berhasil
+  /// (seperti pendaftaran di aplikasi bank). Langsung pindai tanpa gate —
+  /// dialog sistem yang menentukan hasilnya + kode error yang jelas.
+  /// Gagal/batal = tetap mati. Default: MATI.
+  Future<void> _toggleBiometric(BuildContext context, WidgetRef ref, bool value) async {
+    if (!value) {
+      await ref.read(settingsNotifierProvider).setBiometricEnabled(false);
+      return;
+    }
+    final res = await BiometricAuth.authenticate();
+    if (res.ok) {
+      await ref.read(settingsNotifierProvider).setBiometricEnabled(true);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sidik jari aktif — tempelkan jari di layar kunci')));
+      }
+    } else if (res.code != null && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(BiometricAuth.friendlyMessage(res.code)),
+        duration: const Duration(seconds: 4),
+      ));
+    }
+  }
+
   void _showLockSheet(BuildContext context, WidgetRef ref) {
     final hasPin = (ref.read(settingsStreamProvider).valueOrNull?.pinHash.isNotEmpty ?? false);
     showModalBottomSheet(
@@ -400,8 +527,10 @@ class SettingsScreen extends ConsumerWidget {
           TextButton(onPressed: () => Navigator.pop(c), child: const Text('Batal')),
           FilledButton(
             onPressed: () async {
-              final stored = ref.read(settingsStreamProvider).valueOrNull?.pinHash ?? '';
-              final ok = PinHasher.verify(ctrl.text.trim(), stored);
+              final s = ref.read(settingsStreamProvider).valueOrNull;
+              final pin = ctrl.text.trim();
+              final ok = PinHasher.verify(pin, s?.pinHash ?? '', s?.pinSalt ?? '') ||
+                  PinHasher.verifyLegacy(pin, s?.pinHash ?? '', s?.pinSalt ?? '');
               Navigator.pop(c);
               if (!ok && context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PIN salah')));
@@ -438,7 +567,7 @@ class SettingsScreen extends ConsumerWidget {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PIN harus 6 digit dan sama')));
                 return;
               }
-              await ref.read(settingsNotifierProvider).setPinHash(PinHasher.hash(a));
+              await ref.read(settingsNotifierProvider).setPin(a);
               if (c.mounted) Navigator.pop(c);
               if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PIN aktif — berlaku mulai buka aplikasi berikutnya')));
             },

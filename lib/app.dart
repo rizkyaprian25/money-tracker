@@ -20,6 +20,8 @@ class MoneyTrackerApp extends ConsumerWidget {
     final settings = ref.watch(settingsStreamProvider).valueOrNull;
     final locked = ref.watch(appLockedProvider);
     final pinHash = settings?.pinHash ?? '';
+    final pinSalt = settings?.pinSalt ?? '';
+    final bioEnabled = settings?.biometricEnabled ?? false;
 
     final router = GoRouter(
       initialLocation: '/',
@@ -47,7 +49,7 @@ class MoneyTrackerApp extends ConsumerWidget {
       // v1.1: kunci PIN — tutupi seluruh app bila terkunci
       builder: (context, child) {
         if (pinHash.isNotEmpty && locked) {
-          return LockScreen(pinHash: pinHash, onUnlocked: () {});
+          return LockScreen(pinHash: pinHash, pinSalt: pinSalt, biometricEnabled: bioEnabled, onUnlocked: () {});
         }
         return child ?? const SizedBox.shrink();
       },

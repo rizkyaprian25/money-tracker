@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 class CurrencyFormatter {
@@ -34,5 +35,26 @@ class CurrencyFormatter {
     final cleaned = input.replaceAll(RegExp(r'[^0-9]'), '');
     if (cleaned.isEmpty) return 0;
     return double.tryParse(cleaned) ?? 0;
+  }
+}
+
+/// Formatter input nominal: ketik `700000` tampil `700.000` otomatis.
+/// Dipakai di semua field jumlah (transaksi, anggaran, target, kontribusi).
+/// `parse()` tetap bisa membaca hasilnya (non-digit dibuang).
+class ThousandsSeparatorInputFormatter extends TextInputFormatter {
+  final NumberFormat _f = NumberFormat('#,###', 'id_ID');
+
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    final digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return const TextEditingValue(text: '');
+    final n = int.tryParse(digits);
+    if (n == null) return oldValue;
+    final formatted = _f.format(n);
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
   }
 }

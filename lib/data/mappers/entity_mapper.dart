@@ -98,6 +98,9 @@ extension AppSettingMapper on AppSetting {
         profileName: profileName,
         profileEmail: profileEmail,
         budgetWarningEnabled: budgetWarningEnabled,
+        biometricEnabled: biometricEnabled,
+        autoBackupFreq: autoBackupFreq,
+        pinSalt: pinSalt,
       );
 }
 

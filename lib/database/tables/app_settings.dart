@@ -12,4 +12,9 @@ class AppSettings extends Table {
   BoolColumn get budgetWarningEnabled => boolean().withDefault(const Constant(true))();
   // v4 (v1.1): hash SHA-256 PIN kunci layar ('' = tidak dikunci)
   TextColumn get pinHash => text().withDefault(const Constant(''))();
+  // v5 (v1.1): sidik jari (default MATI — user menyalakan + pindai sendiri) + jadwal backup
+  BoolColumn get biometricEnabled => boolean().withDefault(const Constant(false))();
+  TextColumn get autoBackupFreq => text().withDefault(const Constant('weekly'))(); // off | weekly | monthly
+  // v6 (pentest 2026-09-04): salt acak per-install untuk hash PIN
+  TextColumn get pinSalt => text().withDefault(const Constant(''))();
 }

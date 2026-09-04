@@ -29,3 +29,6 @@ Future<String> readFileAsString(String path) async {
 Future<void> shareFileWeb(String path) async {
   // On web, file already downloaded via saveBytes, nothing to share
 }
+
+/// Web: tanpa filesystem — backup pengaman restore tidak didukung.
+Future<String> saveAutoBackup(String fileName, Uint8List bytes, {String mimeType = 'application/octet-stream'}) async => '';

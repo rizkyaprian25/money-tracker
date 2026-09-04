@@ -40,7 +40,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -65,6 +65,15 @@ class AppDatabase extends _$AppDatabase {
             await migrator.addColumn(appSettings, appSettings.pinHash);
             await customStatement(
                 'CREATE INDEX IF NOT EXISTS idx_recurring_nextDate ON recurring_transactions(next_date)');
+          }
+          // v5: sidik jari + jadwal backup (ada default -> aman)
+          if (from < 5) {
+            await migrator.addColumn(appSettings, appSettings.biometricEnabled);
+            await migrator.addColumn(appSettings, appSettings.autoBackupFreq);
+          }
+          // v6: salt acak PIN (default '' -> diisi saat PIN dibuat)
+          if (from < 6) {
+            await migrator.addColumn(appSettings, appSettings.pinSalt);
           }
         },
         beforeOpen: (details) async {
@@ -274,7 +283,7 @@ class AppDatabase extends _$AppDatabase {
         isDarkMode: Value(false),
         language: Value('id'),
       ));
-      return AppSetting(id: id, currency: 'IDR', isDarkMode: false, language: 'id', lastBackup: null, profileName: 'Pengguna', profileEmail: '', budgetWarningEnabled: true, pinHash: '');
+      return AppSetting(id: id, currency: 'IDR', isDarkMode: false, language: 'id', lastBackup: null, profileName: 'Pengguna', profileEmail: '', budgetWarningEnabled: true, pinHash: '', biometricEnabled: false, autoBackupFreq: 'weekly', pinSalt: '');
     }
     return list.first;
   }

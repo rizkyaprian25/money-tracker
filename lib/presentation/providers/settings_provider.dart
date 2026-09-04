@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/utils/pin_hasher.dart';
 import '../../database/app_database.dart';
 import 'database_provider.dart';
 
@@ -46,8 +47,25 @@ class SettingsNotifier {
     await db.updateSettings(AppSettingsCompanion(pinHash: Value(hash)));
   }
 
+  /// Buat PIN baru dengan salt acak per-install (pentest 2026-09-04).
+  Future<void> setPin(String pin) async {
+    final salt = PinHasher.generateSalt();
+    await db.updateSettings(AppSettingsCompanion(
+      pinHash: Value(PinHasher.hash(pin, salt)),
+      pinSalt: Value(salt),
+    ));
+  }
+
   Future<void> clearPin() async {
-    await db.updateSettings(const AppSettingsCompanion(pinHash: Value('')));
+    await db.updateSettings(const AppSettingsCompanion(pinHash: Value(''), pinSalt: Value('')));
+  }
+
+  Future<void> setBiometricEnabled(bool value) async {
+    await db.updateSettings(AppSettingsCompanion(biometricEnabled: Value(value)));
+  }
+
+  Future<void> setAutoBackupFreq(String freq) async {
+    await db.updateSettings(AppSettingsCompanion(autoBackupFreq: Value(freq)));
   }
 }
 

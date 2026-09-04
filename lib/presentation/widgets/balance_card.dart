@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/utils/currency_formatter.dart';
+import '../providers/dashboard_provider.dart';
 
-class BalanceCard extends StatelessWidget {
+class BalanceCard extends ConsumerWidget {
   final double balance;
   final double income;
   final double expense;
   const BalanceCard({super.key, required this.balance, required this.income, required this.expense});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
+    final visible = ref.watch(balanceVisibleProvider);
+    String show(double amount) => visible ? CurrencyFormatter.format(amount) : 'Rp ••••••';
     return Container(
       decoration: BoxDecoration(
         color: scheme.primary,
@@ -34,9 +38,22 @@ class BalanceCard extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Saldo Saat Ini', style: TextStyle(color: scheme.onPrimary.withValues(alpha: 0.85), fontSize: 12, letterSpacing: 0.5)),
+              Row(
+                children: [
+                  Text('Saldo Saat Ini', style: TextStyle(color: scheme.onPrimary.withValues(alpha: 0.85), fontSize: 12, letterSpacing: 0.5)),
+                  const Spacer(),
+                  InkWell(
+                    onTap: () => ref.read(balanceVisibleProvider.notifier).state = !visible,
+                    borderRadius: BorderRadius.circular(20),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(visible ? Icons.visibility : Icons.visibility_off, size: 18, color: scheme.onPrimary.withValues(alpha: 0.9)),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 4),
-              Text(CurrencyFormatter.format(balance),
+              Text(show(balance),
                   style: TextStyle(color: scheme.onPrimary, fontSize: 24, fontWeight: FontWeight.w700, letterSpacing: -0.5)),
               const SizedBox(height: 16),
               Container(height: 1, color: Colors.white.withValues(alpha: 0.15)),
@@ -51,7 +68,7 @@ class BalanceCard extends StatelessWidget {
                       Text('Pemasukan', style: TextStyle(color: scheme.onPrimary.withValues(alpha: 0.85), fontSize: 11)),
                     ]),
                     const SizedBox(height: 4),
-                    Text(CurrencyFormatter.format(income),
+                    Text(show(income),
                         style: TextStyle(color: scheme.onPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
                   ]),
                   Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -61,7 +78,7 @@ class BalanceCard extends StatelessWidget {
                       Text('Pengeluaran', style: TextStyle(color: scheme.onPrimary.withValues(alpha: 0.85), fontSize: 11)),
                     ]),
                     const SizedBox(height: 4),
-                    Text(CurrencyFormatter.format(expense),
+                    Text(show(expense),
                         style: TextStyle(color: scheme.onPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
                   ]),
                 ],

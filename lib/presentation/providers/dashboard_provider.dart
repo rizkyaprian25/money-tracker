@@ -1,9 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../database/app_database.dart';
+import '../../services/export_service.dart';
 import 'database_provider.dart';
 
-class DashboardData {
-  final double balance;
+class DashboardData {  final double balance;
   final double monthlyIncome;
   final double monthlyExpense;
   final double remainingBudget;
@@ -24,6 +24,10 @@ final dashboardProvider = FutureProvider<DashboardData>((ref) async {
   // v1.1: generate transaksi berulang yang jatuh tempo (idempoten)
   try {
     await db.processDueRecurring();
+  } catch (_) {}
+  // v1.1: backup otomatis bila jadwal jatuh tempo (no-op bila belum)
+  try {
+    await ExportService(db).maybeAutoBackup();
   } catch (_) {}
   // watch for invalidation
   final recent = await db.getTransactions(limit: 5);
@@ -65,3 +69,7 @@ final dashboardProvider = FutureProvider<DashboardData>((ref) async {
     remainingBudget: remaining > 0 ? remaining : 0,
   );
 });
+
+/// Tampilkan/sembunyikan nominal di Beranda (ikon mata). Session-only,
+/// default terlihat tiap buka aplikasi.
+final balanceVisibleProvider = StateProvider<bool>((ref) => true);

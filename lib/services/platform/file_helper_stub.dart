@@ -11,3 +11,5 @@ Future<String> getTempFilePath(String fileName) async => fileName;
 Future<String> readFileAsString(String path) async => throw UnsupportedError('readFileAsString not supported');
 
 Future<void> shareFileWeb(String path) async {}
+
+Future<String> saveAutoBackup(String fileName, Uint8List bytes, {String mimeType = 'application/octet-stream'}) async => '';

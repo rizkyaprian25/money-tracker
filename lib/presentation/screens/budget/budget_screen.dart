@@ -186,7 +186,7 @@ class _BudgetFormSheetState extends ConsumerState<_BudgetFormSheet> {
     super.initState();
     if (widget.existing != null) {
       selectedCatId = widget.existing!.budget.categoryId;
-      amountCtrl.text = widget.existing!.budget.amount.toStringAsFixed(0);
+      amountCtrl.text = CurrencyFormatter.formatWithoutSymbol(widget.existing!.budget.amount);
     }
   }
 
@@ -228,6 +228,7 @@ class _BudgetFormSheetState extends ConsumerState<_BudgetFormSheet> {
             TextField(
               controller: amountCtrl,
               keyboardType: TextInputType.number,
+              inputFormatters: [ThousandsSeparatorInputFormatter()],
               decoration: InputDecoration(labelText: 'Jumlah Anggaran (Rp)', prefixText: 'Rp ', filled: true, fillColor: scheme.surfaceContainerHighest.withValues(alpha: 0.4), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)),
             ),
             const SizedBox(height: 20),
@@ -315,7 +316,7 @@ class _GoalFormSheetState extends ConsumerState<_GoalFormSheet> {
             const SizedBox(height: 16),
             TextField(controller: nameCtrl, decoration: InputDecoration(labelText: 'Nama Target', hintText: 'Contoh: Laptop Baru', filled: true, fillColor: scheme.surfaceContainerHighest.withValues(alpha: 0.4), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none))),
             const SizedBox(height: 12),
-            TextField(controller: targetCtrl, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Target Jumlah (Rp)', prefixText: 'Rp ', filled: true, fillColor: scheme.surfaceContainerHighest.withValues(alpha: 0.4), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none))),
+            TextField(controller: targetCtrl, keyboardType: TextInputType.number, inputFormatters: [ThousandsSeparatorInputFormatter()], decoration: InputDecoration(labelText: 'Target Jumlah (Rp)', prefixText: 'Rp ', filled: true, fillColor: scheme.surfaceContainerHighest.withValues(alpha: 0.4), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none))),
             const SizedBox(height: 12),
             InkWell(
               onTap: () async {
@@ -387,7 +388,7 @@ class _ContributionSheetState extends ConsumerState<_ContributionSheet> {
             const SizedBox(height: 6),
             Text('Terkumpul: ${CurrencyFormatter.format(widget.goal.currentAmount)} / ${CurrencyFormatter.format(widget.goal.targetAmount)}', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
             const SizedBox(height: 16),
-            TextField(controller: amountCtrl, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Jumlah Kontribusi (Rp)', prefixText: 'Rp ', filled: true, fillColor: scheme.surfaceContainerHighest.withValues(alpha: 0.4), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none))),
+            TextField(controller: amountCtrl, keyboardType: TextInputType.number, inputFormatters: [ThousandsSeparatorInputFormatter()], decoration: InputDecoration(labelText: 'Jumlah Kontribusi (Rp)', prefixText: 'Rp ', filled: true, fillColor: scheme.surfaceContainerHighest.withValues(alpha: 0.4), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none))),
             const SizedBox(height: 12),
             TextField(controller: noteCtrl, decoration: InputDecoration(labelText: 'Catatan (opsional)', filled: true, fillColor: scheme.surfaceContainerHighest.withValues(alpha: 0.4), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none))),
             const SizedBox(height: 20),

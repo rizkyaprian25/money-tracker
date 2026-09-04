@@ -31,4 +31,10 @@ class SettingsRepositoryImpl implements SettingsRepository {
 
   Future<void> setBudgetWarningEnabled(bool value) =>
       db.updateSettings(AppSettingsCompanion(budgetWarningEnabled: Value(value)));
+
+  Future<void> setBiometricEnabled(bool value) =>
+      db.updateSettings(AppSettingsCompanion(biometricEnabled: Value(value)));
+
+  Future<void> setAutoBackupFreq(String freq) =>
+      db.updateSettings(AppSettingsCompanion(autoBackupFreq: Value(freq)));
 }

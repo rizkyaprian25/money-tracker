@@ -37,7 +37,7 @@ class _AddEditTransactionSheetState extends ConsumerState<AddEditTransactionShee
       final tx = widget.existing!.transaction;
       type = tx.transactionType;
       selectedCategoryId = tx.categoryId;
-      amountCtrl.text = tx.amount.toStringAsFixed(0);
+      amountCtrl.text = CurrencyFormatter.formatWithoutSymbol(tx.amount);
       noteCtrl.text = tx.note ?? '';
       date = tx.transactionDate;
     }
@@ -103,6 +103,7 @@ class _AddEditTransactionSheetState extends ConsumerState<AddEditTransactionShee
                 TextField(
                   controller: amountCtrl,
                   keyboardType: TextInputType.number,
+                  inputFormatters: [ThousandsSeparatorInputFormatter()],
                   decoration: InputDecoration(
                     labelText: 'Jumlah (Rp)',
                     prefixText: 'Rp ',

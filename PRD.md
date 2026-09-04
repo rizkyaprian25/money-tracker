@@ -54,6 +54,7 @@ Aplikasi **Money Tracker Personal** adalah aplikasi mobile Android offline-first
 | Nav | `go_router` | `15.1.3` | `StatefulShellRoute.indexedStack` 5 cabang — `lib/app.dart:19-33` |
 | Util | `uuid` | `4.5.1` | — |
 | Media | `image_picker` | `1.1.2` | Foto target menabung — `lib/presentation/screens/budget/budget_screen.dart:264` |
+| Kunci | `local_auth` + `crypto` | `2.3.0` / `3.0.6` | Sidik jari (`BiometricAuth`) + hash PIN SHA-256 — v1.1 (2026-09-04) |
 
 ---
 
@@ -131,7 +132,7 @@ Header tiap screen: `AppBar` `bg #CCF8F9FA` blur + logo lokal `assets/images/log
 
 ## 7. Database — Drift ORM
 
-**File:** `lib/database/app_database.dart:14-40` `schemaVersion => 4` (`AppConstants.dbVersion:6` = 4), `beforeOpen PRAGMA foreign_keys = ON` — `lib/database/app_database.dart:37-39` + `MigrationStrategy onUpgrade v1→v2` (index) + `v2→v3` (`addColumn` profil/warning) + `v3→v4` (tabel `recurring_transactions` + `addColumn pinHash` + index — `app_database.dart:31-55`). Index dibuat via `_createIndexes()` — `app_database.dart:41-55` (8 index + `idx_recurring_nextDate` di migrasi v4).
+**File:** `lib/database/app_database.dart:14-40` `schemaVersion => 6` (`AppConstants.dbVersion:6` = 6), `beforeOpen PRAGMA foreign_keys = ON` — `lib/database/app_database.dart:37-39` + `MigrationStrategy onUpgrade v1→v2` (index) + `v2→v3` (`addColumn` profil/warning) + `v3→v4` (tabel `recurring_transactions` + `addColumn pinHash` + index) + `v4→v5` (biometrik/backup) + `v5→v6` (`addColumn pinSalt` — `app_database.dart:31-55`). Index dibuat via `_createIndexes()` — `app_database.dart:41-55` (8 index + `idx_recurring_nextDate` di migrasi v4).
 
 ### 7.1 Tabel (6)
 
@@ -199,10 +200,11 @@ profileName TEXT DEFAULT 'Pengguna'       // v3 (2026-09-03)
 profileEmail TEXT DEFAULT ''              // v3
 budgetWarningEnabled BOOLEAN DEFAULT true // v3
 pinHash TEXT DEFAULT ''                   // v4 (2026-09-03, SHA-256 PIN, '' = mati)
+biometricEnabled BOOLEAN DEFAULT true   // v5 (2026-09-04, toggle sidik jari)
+autoBackupFreq TEXT DEFAULT 'weekly'    // v5 (off|weekly|monthly)
 ```
 
 ### 7.2 Query Utama — `lib/database/app_database.dart:43-203` + Index v2 — `app_database.dart:41-55`
-
 - `watchTransactions({search, type, categoryId, startDate, endDate, limit, offset})` join `leftOuterJoin categories` + `like '%search%'` pada `note` & `category.name` + `orderBy desc transactionDate` + `limit/offset` — `app_database.dart:43-80` — **di-index:** `idx_transactions_transactionDate`, `idx_transactions_categoryId`, `idx_transactions_transactionType`, `idx_transactions_date_type`
 - `getTransactions` sync counterpart — `app_database.dart:83-120` — pakai index yang sama
 - `getTotalIncome / getTotalExpense / getBalance` via `selectOnly sum(amount)` — `app_database.dart:122-150` — optimal via `idx_transactions_date_type`
@@ -239,6 +241,7 @@ Dijalankan `onCreate` hanya jika `categories` kosong. **Sejak 2026-09-03: hanya 
 ### 8.1 Dashboard — `lib/presentation/screens/dashboard/dashboard_screen.dart:12-250`
 
 - **Tampil:** Saldo Saat Ini (`getBalance`), Total Pemasukan Bulan Ini (`getTotalIncome 1..endOfMonth`), Total Pengeluaran Bulan Ini (`getTotalExpense`), Sisa Anggaran (`totalBudget - expense`, clamp 0) — `dashboard_provider.dart:22-52` + `BalanceCard`, `Anggaran Bulanan` donut `1 - expense/income` — `dashboard_screen.dart:124-148`, `Pengeluaran Teratas 2` — `dashboard_screen.dart:151-195`, `Aktivitas Terbaru 5` — `dashboard_screen.dart:85-108`, `Breakdown Pengeluaran Pie` `fl_chart` — `dashboard_screen.dart:197-249`.
+- **Privasi nominal (2026-09-04):** ikon mata di `BalanceCard` toggle `balanceVisibleProvider` — saldo/pemasukan/pengeluaran tampil `Rp ••••••` saat disembunyikan (session-only, default terlihat).
 - **Chart måneden:** sisa anggaran `DonutChart` — `lib/presentation/widgets/donut_chart.dart`.
 - **AC:** refresh indicator invalidasi `dashboardProvider` — `dashboard_screen.dart:56`.
 
@@ -295,6 +298,7 @@ Dijalankan `onCreate` hanya jika `categories` kosong. **Sejak 2026-09-03: hanya 
   - JSON Backup: `exportJson()` semua tabel + `exportDate/version` — `export_service.dart:18-74` → `money_tracker_backup_yyyyMMdd_HHmmss.json`
 - **Share (Fase 5 — `share_plus 11`):** `SharePlus.instance.share(ShareParams(files: [...]))` — `export_service.dart` + `file_helper_io.dart` (API lama `Share.shareXFiles` deprecated, 4 warning analyze hilang).
 - **Import (Fase 5 — ID mapping fix):** `importJsonString` petakan `oldId → newId` (`catIdMap`, `goalIdMap`) karena `AUTOINCREMENT` tidak reset setelah DELETE — tanpa ini FK `categoryId/goalId` rusak saat restore. Kategori hilang → `NULL` (ikut `SET NULL`); kontribusi tanpa goal → dilewati (FK `NOT NULL`). `imagePath` goal ikut di-backup/restore. Dipanggil dari `SettingsScreen._showBackupRestore` via `FilePicker` `*.json` + `withData` (web pakai bytes) — `settings_screen.dart:204-217`.
+- **Restore aman (2026-09-04):** sebelum wipe, `importJsonString` menyimpan snapshot DB ke `documents/auto_backups/` (3 terbaru, IO saja); UI menampilkan dialog konfirmasi berisi perbandingan isi (file vs DB saat ini) + validasi format via `ExportService.backupSummary` — restore salah tidak lagi bisa menghapus data diam-diam (insiden: restore backup kosong, lihat ERROR.md §7).
 - **AC:** update `lastBackup` setelah JSON export/import — `settings_screen.dart:180-215`.
 
 ### 8.9 Settings — `lib/presentation/providers/settings_provider.dart:6-41` + `settings_screen.dart:10-381`
@@ -304,6 +308,9 @@ Dijalankan `onCreate` hanya jika `categories` kosong. **Sejak 2026-09-03: hanya 
 - **Profil user (2026-09-03):** kartu profil tampil `profileName/profileEmail` dari settings + dialog edit (`_showEditProfile`) persist via `updateProfile` — butuh kolom baru (schema v3, §7).
 - **Notifikasi → Peringatan Anggaran (2026-09-03):** `SwitchListTile` bound ke `budgetWarningEnabled`; OFF mematikan snackbar 80% di `budget_screen` & `add_edit_transaction_sheet` (di-check sebelum tampil).
 - **Bantuan (2026-09-03):** bottom sheet FAQ offline 5 item (`_showHelpSheet`).
+- **Kunci Layar (2026-09-03, v1.1):** buat/ganti/nonaktifkan PIN — §8.12.
+- **Sidik Jari (2026-09-04, v1.1):** toggle `biometricEnabled`; tombol sidik di `LockScreen` bila hardware tersedia (`BiometricAuth.isAvailable`, paket `local_auth`, permission `USE_BIOMETRIC`).
+- **Backup Otomatis (2026-09-04, v1.1):** pilihan Mati/Mingguan/Bulanan (`autoBackupFreq`); `ExportService.maybeAutoBackup()` jalan tiap Beranda dimuat, snapshot ke `auto_backups/` bila jatuh tempo + update `lastBackup`. Skema v5.
 - **Backup & Restore:** `Cadangkan & Pulihkan` sheet 2 opsi — `settings_screen.dart:191-223`.
 - **Ekspor 3 tombol:** PDF/Excel/JSON — `settings_screen.dart:105-110`.
 - **Kelola Kategori:** bottom sheet daftar + dialog add/edit — `settings_screen.dart:226-334`.
@@ -377,7 +384,7 @@ Invalidasi: legacy `ref.invalidate(dashboardProvider)` + `ref.watch(budgetsStrea
 
 ## 10. Layanan & Util
 
-- **CurrencyFormatter** — `lib/core/utils/currency_formatter.dart:16-43` `format(4250750) => Rp4.250.750`, `formatCompact`, `parse` via `replaceAll RegExp [^0-9]`.
+- **CurrencyFormatter** — `lib/core/utils/currency_formatter.dart:16-43` `format(4250750) => Rp4.250.750`, `formatCompact`, `parse` via `replaceAll RegExp [^0-9]` + `ThousandsSeparatorInputFormatter` (2026-09-04, ketik `700000` tampil `700.000` di semua field nominal).
 - **AppConstants** — `lib/core/constants/app_constants.dart:1-8` `appName Money Tracker Personal`, `currencySymbol Rp`, `locale id_ID`, `dbVersion 2` (**Fase 2 bump v1→v2**), `budgetWarningThreshold 0.8`.
 - **BudgetWarningHelper** — `lib/core/utils/budget_warning_helper.dart:1-40` `showBudgetWarningSnackbars()`, `hasWarning()`, `shouldWarn()` — threshold `AppConstants.budgetWarningThreshold`.
 - **BudgetWarningBanner** — `lib/presentation/widgets/budget_warning_banner.dart:1-65` — banner error di `budget_screen.dart`.
@@ -416,7 +423,9 @@ core/
 ├── theme/{app_colors.dart:1-127, app_theme.dart:1-151}
 └── utils/{currency_formatter.dart:1-44, date_formatter.dart, budget_warning_helper.dart:1-40 (Fase 2)}
 database/{app_database.dart:14-55 (schema v2 + _createIndexes 8 index), app_database.g.dart, tables/*}
-assets/images/logo.png (512x512 8354B, Fase 3)
+assets/images/logo.png (emblem 512x512 dari logo resmi user, ganti artwork Fase 3; master di design/logo_master.png — tidak dibundel)
+android/{AndroidManifest.xml (label Money Tracker + permission, Fase 5), app/build.gradle.kts (minSdk 21, Fase 5), res/mipmap-*/ic_launcher.png (logo penuh) + ic_launcher_foreground.png (emblem) + mipmap-anydpi-v26 (adaptive bg putih) + splash logo (2026-09-04)}
+web/{index.html, manifest.json (#24389C), icons diganti logo resmi (2026-09-04), sqlite3.wasm, drift_worker}
 data/...
 domain/...
 presentation/
@@ -455,6 +464,9 @@ android/{AndroidManifest.xml (READ_MEDIA_IMAGES + READ_EXTERNAL_STORAGE maxSdk 3
 - [x] **Fase 6 — QA — SELESAI (2026-09-03):** `flutter analyze` **No issues found** (20 → 0, termasuk 6 `use_build_context_synchronously` + 4 deprecated Share); `flutter test` **6/6 pass** (`test/widget_test.dart` hermetis: CurrencyFormatter ×3, threshold 80% ×2, BalanceCard ×1; full-app pump diganti — google_fonts fetch + sqlite native tidak hermetis, lihat header test); `flutter build web` sukses `√ Built build\web`; **`flutter build apk --release` sukses `app-release.apk 24.0MB` (arm64, KPI <40MB)** — hemat: `--shrink --obfuscate --split-debug-info`, foto goal `maxWidth 1280/q75`; butuh `gradle.properties` (`kotlin.incremental=false`, `Xmx3G`, `workers.max=2`, lihat ERROR.md §6) karena RAM 8GB + proyek beda drive dengan Pub cache
 - [x] **Fitur sampingan batch — SELESAI (2026-09-03):** 6 tombol mati dihidupkan — Dashboard `Lihat Semua → /transactions`, `Detail → /statistics` (`context.go`); profil user edit persist (kolom baru `profileName/profileEmail`); dialog mata uang (`RadioGroup`, persist IDR); `Notifikasi` → toggle `Peringatan Anggaran` (`budgetWarningEnabled`, mematikan snackbar 80%); `Bantuan` → FAQ offline 5 item. Skema DB v2→v3 (`addColumn` + `build_runner` regen + entity/mapper/repo ikut). `analyze` 0 issues, test 6/6, APK 24.1MB
 - [x] **Fitur v1.1 batch — SELESAI (2026-09-03):** (1) transaksi berulang otomatis — tabel `recurring_transactions` + `processDueRecurring()` + toggle di sheet + `RecurringSheet` kelola + backup ikut; (2) kunci PIN 6 digit — `pinHash` SHA-256 + `LockScreen` + pengaturan buat/ganti/nonaktif; (3) salin anggaran bulan lalu — `copyFromPreviousMonth()` + tombol + konfirmasi. Skema DB v3→v4. Test 13/13 (`nextRecurrence` ×5, `PinHasher` ×2). `analyze` 0 issues, APK 24.1MB
+- [x] **Logo resmi — SELESAI (2026-09-04):** `design/logo_master.png` (500x500 transparan dari user) → emblem `assets/images/logo.png` 512 (header + footer, tanpa ubah kode), launcher legacy full-logo + adaptive foreground emblem (bg putih) + splash logo, web icons diganti. APK 24.4MB
+- [x] **Biometrik + backup terjadwal — SELESAI (2026-09-04):** sidik jari di `LockScreen` (`local_auth`, toggle `biometricEnabled`) + backup otomatis Mati/Mingguan/Bulanan (`maybeAutoBackup()` tiap Beranda dimuat → `auto_backups/` + `lastBackup`). Skema DB v4→v5. `analyze` 0 issues, test 14/14, APK 24.8MB
+- [x] **Pentest ringan — SELESAI (2026-09-04):** `aapt2` bedah APK — FIX: `allowBackup=false` (DB jangan ke Google Drive), salt PIN acak per-install (`pinSalt`, skema v6, upgrade transparan PIN lama), strip `.so` non-arm64 (`packaging excludes`; `abiFilters` saja tak mempan). Tunda: bundel font Inter (tanpa `INTERNET` font fallback sistem), `FLAG_SECURE`. Lihat ERROR.md §8. `analyze` 0 issues, test 15/15, APK **21.6MB**
 
 ---
 
